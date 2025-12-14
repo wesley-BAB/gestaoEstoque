@@ -14,7 +14,13 @@ import {
   Settings,
   Box,
   UserCircle,
-  FileText
+  FileText,
+  Search,
+  Filter,
+  Briefcase,
+  Shield,
+  Lock,
+  CheckSquare
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -23,7 +29,10 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Tipos ---
-type ViewState = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'funcionarios' | 'fornecedores' | 'setores' | 'usuarios' | 'relatorio_funcionario' | 'relatorio_material';
+type ModuleType = 'almoxarifado' | 'rh' | 'administracao' | 'financeiro';
+type AlmoxarifadoView = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'fornecedores' | 'relatorio_funcionario' | 'relatorio_material';
+type RHView = 'dashboard' | 'funcionarios' | 'setores';
+type AdminView = 'dashboard' | 'usuarios';
 
 // --- Componentes de UI ---
 
@@ -50,8 +59,6 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
     setLoading(true);
 
     try {
-      // Usar maybeSingle() para não retornar erro se não encontrar usuário, apenas null
-      // Trim remove espaços em branco acidentais
       const { data, error } = await supabase
         .from('usuarios')
         .select('*')
@@ -125,8 +132,8 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
   );
 };
 
-// --- Dashboard View ---
-const Dashboard = () => {
+// --- Dashboard View (Almoxarifado) ---
+const DashboardAlmoxarifado = () => {
   const [stats, setStats] = useState({ totalProdutos: 0, totalEstoque: 0, saidasRecentes: [] as any[] });
   const [loading, setLoading] = useState(true);
 
@@ -225,7 +232,71 @@ const Dashboard = () => {
   );
 };
 
-// --- Formulários e Listas Genéricas ---
+// --- Dashboard View (RH) ---
+const DashboardRH = () => {
+    const [stats, setStats] = useState({ totalFuncionarios: 0, totalSetores: 0 });
+  
+    useEffect(() => {
+      const fetch = async () => {
+        const { count: countFunc } = await supabase.from('funcionarios').select('*', { count: 'exact', head: true });
+        const { count: countSetores } = await supabase.from('setores').select('*', { count: 'exact', head: true });
+        setStats({
+            totalFuncionarios: countFunc || 0,
+            totalSetores: countSetores || 0
+        });
+      };
+      fetch();
+    }, []);
+  
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Visão Geral de RH</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card 
+            title="Funcionários Ativos" 
+            value={stats.totalFuncionarios} 
+            icon={Users} 
+            colorClass="bg-purple-500" 
+          />
+          <Card 
+            title="Setores Cadastrados" 
+            value={stats.totalSetores} 
+            icon={Briefcase} 
+            colorClass="bg-orange-500" 
+          />
+        </div>
+      </div>
+    );
+  };
+
+// --- Dashboard View (Administração) ---
+const DashboardAdmin = () => {
+    const [stats, setStats] = useState({ totalUsuarios: 0 });
+  
+    useEffect(() => {
+      const fetch = async () => {
+        const { count } = await supabase.from('usuarios').select('*', { count: 'exact', head: true });
+        setStats({ totalUsuarios: count || 0 });
+      };
+      fetch();
+    }, []);
+  
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Visão Geral Administrativa</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card 
+            title="Usuários do Sistema" 
+            value={stats.totalUsuarios} 
+            icon={Shield} 
+            colorClass="bg-gray-800" 
+          />
+        </div>
+      </div>
+    );
+  };
+
+// --- Componente de Formulário Genérico ---
 
 const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
   const [formData, setFormData] = useState<any>({});
@@ -236,7 +307,18 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData({ ...formData, [field]: value });
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCheckboxGroupChange = (field: string, optionValue: string, checked: boolean) => {
+    setFormData((prev: any) => {
+        const currentValues = prev[field] || [];
+        if (checked) {
+            return { ...prev, [field]: [...currentValues, optionValue] };
+        } else {
+            return { ...prev, [field]: currentValues.filter((v: string) => v !== optionValue) };
+        }
+    });
   };
 
   return (
@@ -250,6 +332,7 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
           {fields.map((field: any) => (
             <div key={field.name}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+              
               {field.type === 'select' ? (
                 <select
                   required={field.required}
@@ -261,6 +344,20 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+              ) : field.type === 'checkbox-group' ? (
+                 <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
+                    {field.options?.map((opt: any) => (
+                        <label key={opt.value} className="flex items-center space-x-2 cursor-pointer">
+                            <input 
+                                type="checkbox"
+                                value={opt.value}
+                                onChange={(e) => handleCheckboxGroupChange(field.name, opt.value, e.target.checked)}
+                                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                            />
+                            <span className="text-sm text-gray-700">{opt.label}</span>
+                        </label>
+                    ))}
+                 </div>
               ) : (
                 <input
                   type={field.type || 'text'}
@@ -281,80 +378,99 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
   );
 };
 
-// --- Módulo Almoxarifado Main Component ---
+// ==========================================
+// MÓDULO ALMOXARIFADO
+// ==========================================
 const AlmoxarifadoModule = () => {
-  const [view, setView] = useState<ViewState>('dashboard');
+  const [view, setView] = useState<AlmoxarifadoView>('dashboard');
   const [showModal, setShowModal] = useState(false);
   const [listData, setListData] = useState<any[]>([]);
-  const [auxData, setAuxData] = useState<any>({}); // Para selects (FKs)
+  const [auxData, setAuxData] = useState<any>({}); 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedReportId, setSelectedReportId] = useState('');
 
-  // Carregar dados dependendo da view
   useEffect(() => {
+    setSearchTerm(''); 
+    setSelectedReportId(''); 
+    setListData([]); 
     loadData();
   }, [view]);
 
   const loadData = async () => {
     let data: any[] = [];
     
-    // CRUD Básico
+    // CRUD e Operações
     if (view === 'produtos') {
       const res = await supabase.from('produtos').select('*').order('descricao');
       if (res.data) data = res.data;
-    } else if (view === 'funcionarios') {
-      const res = await supabase.from('funcionarios').select('*, setores(descricao)').order('nome');
-      if (res.data) data = res.data;
-      const setores = await supabase.from('setores').select('*');
-      setAuxData(prev => ({ ...prev, setores: setores.data }));
     } else if (view === 'fornecedores') {
       const res = await supabase.from('fornecedores').select('*').order('nome');
-      if (res.data) data = res.data;
-    } else if (view === 'setores') {
-      const res = await supabase.from('setores').select('*').order('descricao');
       if (res.data) data = res.data;
     } else if (view === 'entradas') {
       const res = await supabase.from('entradas').select('*, produtos(descricao), fornecedores(nome)').order('data_entrada', { ascending: false });
       if (res.data) data = res.data;
+      // Carregar auxiliares para os dropdowns do formulário
       const prod = await supabase.from('produtos').select('*');
       const forn = await supabase.from('fornecedores').select('*');
       setAuxData({ produtos: prod.data, fornecedores: forn.data });
     } else if (view === 'saidas') {
       const res = await supabase.from('saidas').select('*, produtos(descricao), funcionarios(nome)').order('data_saida', { ascending: false });
       if (res.data) data = res.data;
+      // Carregar auxiliares para os dropdowns do formulário
       const prod = await supabase.from('produtos').select('*');
       const func = await supabase.from('funcionarios').select('*');
       setAuxData({ produtos: prod.data, funcionarios: func.data });
     } 
-    // Relatórios (Processamento no cliente devido a simplicidade do Supabase JS)
+    // Relatórios
     else if (view === 'relatorio_funcionario') {
-      const res = await supabase.from('saidas').select('*, funcionarios(nome), produtos(descricao)');
-      if (res.data) {
-        // Agrupar por funcionário
-        const grouped = res.data.reduce((acc: any, curr: any) => {
-          const nome = curr.funcionarios?.nome || 'Desconhecido';
-          if (!acc[nome]) acc[nome] = { funcionario: nome, total_itens: 0, retiradas: 0, ultima_saida: curr.data_saida };
-          acc[nome].total_itens += curr.quantidade;
-          acc[nome].retiradas += 1;
-          if (new Date(curr.data_saida) > new Date(acc[nome].ultima_saida)) acc[nome].ultima_saida = curr.data_saida;
-          return acc;
-        }, {});
-        data = Object.values(grouped);
-      }
+      // Carrega lista de funcionários para o filtro
+      const res = await supabase.from('funcionarios').select('*').order('nome');
+      if (res.data) setAuxData({ funcionarios: res.data });
+      data = []; 
     } else if (view === 'relatorio_material') {
-      const res = await supabase.from('saidas').select('*, produtos(descricao)');
-      if (res.data) {
-        // Agrupar por produto
-        const grouped = res.data.reduce((acc: any, curr: any) => {
-          const desc = curr.produtos?.descricao || 'Desconhecido';
-          if (!acc[desc]) acc[desc] = { produto: desc, total_saida: 0, frequencia: 0 };
-          acc[desc].total_saida += curr.quantidade;
-          acc[desc].frequencia += 1;
-          return acc;
-        }, {});
-        data = Object.values(grouped);
-      }
+      const res = await supabase.from('produtos').select('*').order('descricao');
+      if (res.data) setAuxData({ produtos: res.data });
+      data = []; 
     }
 
     setListData(data);
+  };
+
+  const handleRunReport = async () => {
+    if (!selectedReportId) {
+      toast.warn('Selecione um item para gerar o relatório.');
+      return;
+    }
+    let data: any[] = [];
+    if (view === 'relatorio_funcionario') {
+        const res = await supabase
+            .from('saidas')
+            .select('*, produtos(descricao), funcionarios(nome)')
+            .eq('funcionario_id', selectedReportId)
+            .order('data_saida', { ascending: false });
+        if (res.data) {
+            data = res.data.map(item => ({
+                data_saida: item.data_saida,
+                produto: item.produtos?.descricao,
+                quantidade: item.quantidade
+            }));
+        }
+    } else if (view === 'relatorio_material') {
+        const res = await supabase
+            .from('saidas')
+            .select('*, funcionarios(nome), produtos(descricao)')
+            .eq('produto_id', selectedReportId)
+            .order('data_saida', { ascending: false });
+         if (res.data) {
+             data = res.data.map(item => ({
+                data_saida: item.data_saida,
+                funcionario: item.funcionarios?.nome,
+                quantidade: item.quantidade
+             }));
+         }
+    }
+    setListData(data);
+    if (data.length === 0) toast.info('Nenhum registro encontrado para a seleção.');
   };
 
   const handleSave = async (data: any) => {
@@ -363,16 +479,13 @@ const AlmoxarifadoModule = () => {
 
     switch(view) {
       case 'produtos': table = 'produtos'; break;
-      case 'setores': table = 'setores'; break;
       case 'fornecedores': table = 'fornecedores'; break;
-      case 'funcionarios': table = 'funcionarios'; break;
       case 'entradas': table = 'entradas'; break;
       case 'saidas': table = 'saidas'; break;
     }
 
     if (!table) return;
 
-    // --- VALIDAÇÃO DE ESTOQUE PARA SAÍDAS ---
     if (view === 'saidas') {
       try {
         const { data: produtoData, error: prodError } = await supabase
@@ -386,20 +499,18 @@ const AlmoxarifadoModule = () => {
           return;
         }
 
-        // Converter para número para garantir comparação correta
         const qtdEstoque = Number(produtoData.quantidade_atual);
         const qtdSaida = Number(payload.quantidade);
 
         if (qtdEstoque < qtdSaida) {
           toast.error(`Estoque insuficiente! Disponível: ${qtdEstoque} | Solicitado: ${qtdSaida}`);
-          return; // Interrompe o salvamento
+          return; 
         }
       } catch (err) {
         toast.error('Erro ao verificar estoque.');
         return;
       }
     }
-    // ------------------------------------------
 
     const { error } = await supabase.from(table).insert(payload);
     
@@ -412,7 +523,6 @@ const AlmoxarifadoModule = () => {
     }
   };
 
-  // Configuração dos campos do formulário baseado na view
   const getFormConfig = () => {
     switch (view) {
       case 'produtos':
@@ -423,15 +533,6 @@ const AlmoxarifadoModule = () => {
             { name: 'quantidade_atual', label: 'Quantidade Inicial', type: 'number', required: true }
           ]
         };
-      case 'funcionarios':
-        return {
-          title: 'Novo Funcionário',
-          fields: [
-            { name: 'nome', label: 'Nome Completo', required: true },
-            { name: 'matricula', label: 'Matrícula', required: true },
-            { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) }
-          ]
-        };
       case 'fornecedores':
         return {
           title: 'Novo Fornecedor',
@@ -440,13 +541,6 @@ const AlmoxarifadoModule = () => {
             { name: 'cnpj', label: 'CNPJ', required: true },
             { name: 'telefone', label: 'Telefone' },
             { name: 'endereco', label: 'Endereço' }
-          ]
-        };
-      case 'setores':
-        return {
-          title: 'Novo Setor',
-          fields: [
-            { name: 'descricao', label: 'Descrição do Setor', required: true }
           ]
         };
       case 'entradas':
@@ -474,20 +568,37 @@ const AlmoxarifadoModule = () => {
 
   const formConfig = getFormConfig();
 
-  // Renderização da Tabela
   const renderTable = () => {
-    if (view === 'dashboard') return <Dashboard />;
+    if (view === 'dashboard') return <DashboardAlmoxarifado />;
     
-    if (listData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
+    let filteredData = listData;
+    if (searchTerm && ['produtos', 'fornecedores'].includes(view)) {
+      const lowerTerm = searchTerm.toLowerCase();
+      filteredData = listData.filter(item => {
+        if (view === 'produtos') return item.descricao?.toLowerCase().includes(lowerTerm);
+        if (view === 'fornecedores') return item.nome?.toLowerCase().includes(lowerTerm) || item.cnpj?.includes(lowerTerm);
+        return false;
+      });
+    }
 
-    // Headers personalizados para relatórios ou genéricos para CRUD
+    if ((view === 'relatorio_funcionario' || view === 'relatorio_material') && listData.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg border border-gray-200 text-gray-400">
+                <Filter className="w-12 h-12 mb-2 opacity-50" />
+                <p>Selecione um item acima e clique em "Visualizar" para gerar o relatório.</p>
+            </div>
+        );
+    }
+    
+    if (filteredData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
+
     let headers: string[] = [];
     if (view === 'relatorio_funcionario') {
-      headers = ['funcionario', 'total_itens', 'retiradas', 'ultima_saida'];
+      headers = ['data_saida', 'produto', 'quantidade'];
     } else if (view === 'relatorio_material') {
-      headers = ['produto', 'total_saida', 'frequencia'];
+      headers = ['data_saida', 'funcionario', 'quantidade'];
     } else {
-      headers = Object.keys(listData[0]).filter(k => typeof listData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
+      headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
     }
     
     return (
@@ -496,14 +607,12 @@ const AlmoxarifadoModule = () => {
           <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
             <tr>
               {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
-              {/* Colunas extras para FKs (apenas em views normais) */}
-              {view === 'funcionarios' && <th className="p-4">Setor</th>}
               {view === 'entradas' && <><th className="p-4">Produto</th><th className="p-4">Fornecedor</th></>}
               {view === 'saidas' && <><th className="p-4">Produto</th><th className="p-4">Funcionário</th></>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {listData.map((row, idx) => (
+            {filteredData.map((row, idx) => (
               <tr key={idx} className="hover:bg-gray-50">
                 {headers.map(h => (
                   <td key={h} className="p-4">
@@ -512,8 +621,6 @@ const AlmoxarifadoModule = () => {
                        : row[h]}
                   </td>
                 ))}
-                {/* Dados Extras FK */}
-                {view === 'funcionarios' && <td className="p-4">{row.setores?.descricao}</td>}
                 {view === 'entradas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.fornecedores?.nome}</td></>}
                 {view === 'saidas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.funcionarios?.nome}</td></>}
               </tr>
@@ -522,6 +629,78 @@ const AlmoxarifadoModule = () => {
         </table>
       </div>
     );
+  };
+
+  const renderToolbar = () => {
+    if (view === 'relatorio_funcionario') {
+        return (
+            <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Funcionário</label>
+                    <select 
+                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        value={selectedReportId}
+                        onChange={(e) => setSelectedReportId(e.target.value)}
+                    >
+                        <option value="">Selecione...</option>
+                        {auxData.funcionarios?.map((f: any) => (
+                            <option key={f.id} value={f.id}>{f.nome} - {f.matricula}</option>
+                        ))}
+                    </select>
+                </div>
+                <button 
+                    onClick={handleRunReport}
+                    className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"
+                >
+                    <Filter className="w-4 h-4" /> Visualizar
+                </button>
+            </div>
+        );
+    }
+    if (view === 'relatorio_material') {
+        return (
+             <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Produto</label>
+                    <select 
+                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        value={selectedReportId}
+                        onChange={(e) => setSelectedReportId(e.target.value)}
+                    >
+                        <option value="">Selecione...</option>
+                        {auxData.produtos?.map((p: any) => (
+                            <option key={p.cod_produto} value={p.cod_produto}>{p.descricao}</option>
+                        ))}
+                    </select>
+                </div>
+                <button 
+                    onClick={handleRunReport}
+                    className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"
+                >
+                    <Filter className="w-4 h-4" /> Visualizar
+                </button>
+            </div>
+        );
+    }
+
+    if (['produtos', 'fornecedores'].includes(view)) {
+        return (
+            <div className="relative mb-6">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                    placeholder={`Pesquisar em ${view}...`}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+        );
+    }
+
+    return null;
   };
 
   return (
@@ -567,14 +746,8 @@ const AlmoxarifadoModule = () => {
             <button onClick={() => setView('produtos')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'produtos' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
               <Package className="w-5 h-5 mr-3" /> Produtos
             </button>
-            <button onClick={() => setView('funcionarios')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'funcionarios' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-              <Users className="w-5 h-5 mr-3" /> Funcionários
-            </button>
             <button onClick={() => setView('fornecedores')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'fornecedores' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
               <Truck className="w-5 h-5 mr-3" /> Fornecedores
-            </button>
-            <button onClick={() => setView('setores')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'setores' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
-              <Box className="w-5 h-5 mr-3" /> Setores
             </button>
           </nav>
         </div>
@@ -596,6 +769,8 @@ const AlmoxarifadoModule = () => {
           )}
         </div>
         
+        {renderToolbar()}
+
         {renderTable()}
 
         {showModal && formConfig && (
@@ -611,12 +786,390 @@ const AlmoxarifadoModule = () => {
   );
 };
 
+// ==========================================
+// MÓDULO RH (RECURSOS HUMANOS)
+// ==========================================
+const RHModule = () => {
+    const [view, setView] = useState<RHView>('dashboard');
+    const [showModal, setShowModal] = useState(false);
+    const [listData, setListData] = useState<any[]>([]);
+    const [auxData, setAuxData] = useState<any>({});
+    const [searchTerm, setSearchTerm] = useState('');
+  
+    useEffect(() => {
+        setSearchTerm('');
+        setListData([]);
+        loadData();
+    }, [view]);
+  
+    const loadData = async () => {
+        let data: any[] = [];
+        if (view === 'funcionarios') {
+            const res = await supabase.from('funcionarios').select('*, setores(descricao)').order('nome');
+            if (res.data) data = res.data;
+            const setores = await supabase.from('setores').select('*');
+            setAuxData(prev => ({ ...prev, setores: setores.data }));
+        } else if (view === 'setores') {
+            const res = await supabase.from('setores').select('*').order('descricao');
+            if (res.data) data = res.data;
+        }
+        setListData(data);
+    };
+
+    const handleSave = async (data: any) => {
+        let table = '';
+        if (view === 'funcionarios') table = 'funcionarios';
+        else if (view === 'setores') table = 'setores';
+
+        if (!table) return;
+
+        const { error } = await supabase.from(table).insert(data);
+        if (error) {
+            toast.error('Erro ao salvar: ' + error.message);
+        } else {
+            toast.success('Registro salvo com sucesso!');
+            setShowModal(false);
+            loadData();
+        }
+    };
+
+    const getFormConfig = () => {
+        if (view === 'funcionarios') {
+            return {
+                title: 'Novo Funcionário',
+                fields: [
+                    { name: 'nome', label: 'Nome Completo', required: true },
+                    { name: 'matricula', label: 'Matrícula', required: true },
+                    { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) }
+                ]
+            };
+        }
+        if (view === 'setores') {
+            return {
+                title: 'Novo Setor',
+                fields: [
+                    { name: 'descricao', label: 'Descrição do Setor', required: true }
+                ]
+            };
+        }
+        return null;
+    };
+    const formConfig = getFormConfig();
+
+    const renderTable = () => {
+        if (view === 'dashboard') return <DashboardRH />;
+
+        let filteredData = listData;
+        if (searchTerm) {
+            const lowerTerm = searchTerm.toLowerCase();
+            filteredData = listData.filter(item => {
+                if (view === 'funcionarios') return item.nome?.toLowerCase().includes(lowerTerm) || item.matricula?.toLowerCase().includes(lowerTerm);
+                if (view === 'setores') return item.descricao?.toLowerCase().includes(lowerTerm);
+                return false;
+            });
+        }
+
+        if (filteredData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
+        
+        const headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_setor');
+
+        return (
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                    <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
+                        <tr>
+                            {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
+                            {view === 'funcionarios' && <th className="p-4">Setor</th>}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {filteredData.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                                {headers.map(h => <td key={h} className="p-4">{row[h]}</td>)}
+                                {view === 'funcionarios' && <td className="p-4">{row.setores?.descricao}</td>}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-[calc(100vh-64px)]">
+            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+                <div className="p-4">
+                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Gestão de Pessoas</h2>
+                    <nav className="space-y-1">
+                        <button onClick={() => setView('dashboard')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'dashboard' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <LayoutDashboard className="w-5 h-5 mr-3" /> Dashboard RH
+                        </button>
+                    </nav>
+                </div>
+                <div className="p-4 pt-0">
+                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Cadastros</h2>
+                    <nav className="space-y-1">
+                        <button onClick={() => setView('funcionarios')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'funcionarios' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Users className="w-5 h-5 mr-3" /> Funcionários
+                        </button>
+                        <button onClick={() => setView('setores')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'setores' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Box className="w-5 h-5 mr-3" /> Setores
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+            <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-gray-800 capitalize">
+                        {view === 'dashboard' ? 'Painel de RH' : `Gestão de ${view}`}
+                    </h1>
+                    {formConfig && (
+                        <button 
+                            onClick={() => setShowModal(true)}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                        >
+                            <span>+ Novo Registro</span>
+                        </button>
+                    )}
+                </div>
+
+                {['funcionarios', 'setores'].includes(view) && (
+                     <div className="relative mb-6">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                            placeholder={`Pesquisar em ${view}...`}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                )}
+
+                {renderTable()}
+
+                {showModal && formConfig && (
+                    <SimpleForm 
+                        title={formConfig.title} 
+                        fields={formConfig.fields} 
+                        onSubmit={handleSave} 
+                        onClose={() => setShowModal(false)} 
+                    />
+                )}
+            </main>
+        </div>
+    );
+};
+
+// ==========================================
+// MÓDULO ADMINISTRAÇÃO
+// ==========================================
+const AdministracaoModule = () => {
+    const [view, setView] = useState<AdminView>('dashboard');
+    const [showModal, setShowModal] = useState(false);
+    const [listData, setListData] = useState<any[]>([]);
+
+    useEffect(() => {
+        setListData([]);
+        loadData();
+    }, [view]);
+
+    const loadData = async () => {
+        let data: any[] = [];
+        if (view === 'usuarios') {
+            const res = await supabase.from('usuarios').select('*').order('usuario');
+            if (res.data) data = res.data;
+        }
+        setListData(data);
+    };
+
+    const handleSave = async (data: any) => {
+        if (view === 'usuarios') {
+            // Garantir que permissões sejam salvas, mesmo que vazio
+            const payload = {
+                ...data,
+                // O SimpleForm retorna array de strings para checkboxes
+                permissoes: data.permissoes || [] 
+            };
+            
+            const { error } = await supabase.from('usuarios').insert(payload);
+            if (error) {
+                toast.error('Erro ao salvar usuário: ' + error.message);
+            } else {
+                toast.success('Usuário salvo com sucesso!');
+                setShowModal(false);
+                loadData();
+            }
+        }
+    };
+
+    const getFormConfig = () => {
+        if (view === 'usuarios') {
+            return {
+                title: 'Novo Usuário',
+                fields: [
+                    { name: 'usuario', label: 'Nome de Usuário', required: true },
+                    { name: 'senha', label: 'Senha', type: 'password', required: true },
+                    { name: 'email', label: 'E-mail', type: 'email' },
+                    { name: 'telefone', label: 'Telefone' },
+                    { 
+                        name: 'permissoes', 
+                        label: 'Módulos Permitidos', 
+                        type: 'checkbox-group', 
+                        options: [
+                            { value: 'almoxarifado', label: 'Almoxarifado' },
+                            { value: 'rh', label: 'RH' },
+                            { value: 'financeiro', label: 'Financeiro' },
+                            { value: 'administracao', label: 'Administração' }
+                        ]
+                    }
+                ]
+            };
+        }
+        return null;
+    };
+    const formConfig = getFormConfig();
+
+    const renderTable = () => {
+        if (view === 'dashboard') return <DashboardAdmin />;
+
+        if (listData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
+        
+        // Exibir colunas específicas
+        return (
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                    <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
+                        <tr>
+                            <th className="p-4">Usuário</th>
+                            <th className="p-4">Email</th>
+                            <th className="p-4">Permissões</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {listData.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                                <td className="p-4 font-medium">{row.usuario}</td>
+                                <td className="p-4">{row.email}</td>
+                                <td className="p-4">
+                                    <div className="flex gap-2">
+                                        {row.permissoes && Array.isArray(row.permissoes) ? (
+                                            row.permissoes.map((p: string) => (
+                                                <span key={p} className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs capitalize">
+                                                    {p}
+                                                </span>
+                                            ))
+                                        ) : <span className="text-gray-400 italic">Nenhuma</span>}
+                                        {row.usuario === 'Wesley.benevides' && (
+                                            <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">MASTER</span>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-[calc(100vh-64px)]">
+            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+                <div className="p-4">
+                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Admin</h2>
+                    <nav className="space-y-1">
+                        <button onClick={() => setView('dashboard')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'dashboard' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <LayoutDashboard className="w-5 h-5 mr-3" /> Dashboard
+                        </button>
+                        <button onClick={() => setView('usuarios')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'usuarios' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Users className="w-5 h-5 mr-3" /> Gerenciar Usuários
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+            <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+                 <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-gray-800 capitalize">
+                        {view === 'dashboard' ? 'Painel Administrativo' : 'Gestão de Usuários'}
+                    </h1>
+                    {formConfig && (
+                        <button 
+                            onClick={() => setShowModal(true)}
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"
+                        >
+                            <span>+ Novo Usuário</span>
+                        </button>
+                    )}
+                </div>
+
+                {renderTable()}
+
+                {showModal && formConfig && (
+                    <SimpleForm 
+                        title={formConfig.title} 
+                        fields={formConfig.fields} 
+                        onSubmit={handleSave} 
+                        onClose={() => setShowModal(false)} 
+                    />
+                )}
+            </main>
+        </div>
+    );
+};
+
 // --- App Principal ---
 const App = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [changePasswordModal, setChangePasswordModal] = useState(false);
+  const [currentModule, setCurrentModule] = useState<ModuleType>('almoxarifado');
 
   const handleLogout = () => setCurrentUser(null);
+
+  // Determinar permissões
+  const isMaster = currentUser?.usuario === 'Wesley.benevides';
+  
+  const hasAccess = (module: ModuleType) => {
+    if (!currentUser) return false;
+    if (isMaster) return true;
+    return currentUser.permissoes && currentUser.permissoes.includes(module);
+  };
+
+  // Redirecionar se perder acesso ao modulo atual
+  useEffect(() => {
+    if (currentUser && !hasAccess(currentModule)) {
+        // Tenta encontrar o primeiro módulo permitido
+        const modules: ModuleType[] = ['almoxarifado', 'rh', 'financeiro', 'administracao'];
+        const firstAllowed = modules.find(m => hasAccess(m));
+        if (firstAllowed) setCurrentModule(firstAllowed);
+    }
+  }, [currentUser]);
+
+  const renderModuleButton = (module: ModuleType, label: string, disabled: boolean = false) => {
+      if (!hasAccess(module) && !disabled) return null; // Esconde se não tem permissão (exceto se for visualmente desabilitado propositalmente)
+
+      return (
+        <button 
+            onClick={() => !disabled && setCurrentModule(module)}
+            className={`px-4 py-1.5 rounded shadow text-sm font-medium transition-colors 
+                ${currentModule === module ? 'bg-emerald-600 text-white' : 'text-emerald-200 hover:text-white hover:bg-emerald-700/50'}
+                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+        >
+            {label}
+        </button>
+      );
+  };
+
+  const renderContent = () => {
+      switch(currentModule) {
+          case 'almoxarifado': return <AlmoxarifadoModule />;
+          case 'rh': return <RHModule />;
+          case 'administracao': return <AdministracaoModule />;
+          default: return <div className="p-10 text-center">Módulo em desenvolvimento ou sem acesso.</div>;
+      }
+  };
 
   return (
     <>
@@ -635,28 +1188,23 @@ const App = () => {
               <span className="font-bold text-xl tracking-wide">Wes ERP</span>
             </div>
 
-            {/* Módulos Menu (Simulado) */}
+            {/* Módulos Menu */}
             <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
-              <button className="px-4 py-1.5 bg-emerald-600 rounded shadow text-sm font-medium">Almoxarifado</button>
-              <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">Financeiro</button>
-              <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">RH</button>
+              {renderModuleButton('almoxarifado', 'Almoxarifado')}
+              {renderModuleButton('rh', 'RH')}
+              {renderModuleButton('financeiro', 'Financeiro', true)}
+              {renderModuleButton('administracao', 'Administração')}
             </div>
 
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end mr-2">
                 <span className="text-sm font-medium">{currentUser.usuario}</span>
-                <span className="text-xs text-emerald-300">Administrador</span>
+                <span className="text-xs text-emerald-300">
+                    {isMaster ? 'Master Admin' : 'Usuário'}
+                </span>
               </div>
               
               <div className="h-8 w-[1px] bg-emerald-600 mx-1"></div>
-
-              <button 
-                onClick={() => toast.info('Funcionalidade de alterar senha será implementada em breve.')} 
-                className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-700 rounded-full transition" 
-                title="Alterar Senha"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
               
               <button 
                 onClick={handleLogout} 
@@ -669,7 +1217,7 @@ const App = () => {
           </header>
 
           {/* Conteúdo do Módulo */}
-          <AlmoxarifadoModule />
+          {renderContent()}
         </div>
       )}
     </>
