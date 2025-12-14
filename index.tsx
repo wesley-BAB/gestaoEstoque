@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import { ToastContainer, toast } from 'react-toastify';
@@ -21,7 +21,9 @@ import {
   Shield,
   Lock,
   CheckSquare,
-  Trash2
+  Trash2,
+  ChevronDown,
+  X
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -48,6 +50,104 @@ const Card = ({ title, value, icon: Icon, colorClass }: any) => (
     </div>
   </div>
 );
+
+// --- Componente de Seleção Pesquisável (Novo) ---
+const SearchableSelect = ({ options, value, onChange, placeholder, required }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Inicializa o termo de busca com o label do valor selecionado, se houver
+  useEffect(() => {
+    if (value && options) {
+      const selectedOption = options.find((opt: any) => String(opt.value) === String(value));
+      if (selectedOption) {
+        setSearchTerm(selectedOption.label);
+      }
+    } else {
+        setSearchTerm('');
+    }
+  }, [value, options]);
+
+  // Fecha o dropdown ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(event: any) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+        // Se fechou e o texto não corresponde a uma opção válida exata, reseta ou mantém (depende da UX desejada).
+        // Aqui optamos por manter visualmente o texto, mas a validação de form html required pode falhar se o value for vazio.
+        // Uma melhoria seria forçar o reset se não for válido.
+        if (value && options) {
+             const selected = options.find((opt: any) => String(opt.value) === String(value));
+             if (selected) setSearchTerm(selected.label);
+        } else {
+             setSearchTerm('');
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [value, options]);
+
+  const filteredOptions = options?.filter((opt: any) => 
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelect = (option: any) => {
+    onChange(option.value);
+    setSearchTerm(option.label);
+    setIsOpen(false);
+  };
+
+  const handleInputChange = (e: any) => {
+    setSearchTerm(e.target.value);
+    setIsOpen(true);
+    // Se o usuário apagar tudo, limpa o valor selecionado
+    if (e.target.value === '') {
+        onChange('');
+    }
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          type="text"
+          required={required && !value} // Hack para validação HTML funcionar se value for vazio
+          className="w-full border border-gray-300 rounded p-2 pr-8 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+          placeholder={placeholder || "Selecione..."}
+          value={searchTerm}
+          onChange={handleInputChange}
+          onClick={() => setIsOpen(true)}
+          autoComplete="off"
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+           <ChevronDown className="w-4 h-4" />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filteredOptions && filteredOptions.length > 0 ? (
+            filteredOptions.map((opt: any) => (
+              <div
+                key={opt.value}
+                className={`px-4 py-2 cursor-pointer hover:bg-emerald-50 text-sm ${String(value) === String(opt.value) ? 'bg-emerald-100 text-emerald-800 font-medium' : 'text-gray-700'}`}
+                onClick={() => handleSelect(opt)}
+              >
+                {opt.label}
+              </div>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+              Nenhuma opção encontrada.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // --- Login Component ---
 const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
@@ -329,22 +429,19 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
           <h3 className="text-white font-semibold">{title}</h3>
           <button onClick={onClose} className="text-white hover:text-emerald-200">✕</button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {fields.map((field: any) => (
             <div key={field.name}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
               
               {field.type === 'select' ? (
-                <select
-                  required={field.required}
-                  className="w-full border border-gray-300 rounded p-2"
-                  onChange={(e) => handleChange(field.name, e.target.value)}
-                >
-                  <option value="">Selecione...</option>
-                  {field.options?.map((opt: any) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+                <SearchableSelect 
+                    options={field.options}
+                    value={formData[field.name]}
+                    onChange={(val: any) => handleChange(field.name, val)}
+                    placeholder="Digite para buscar..."
+                    required={field.required}
+                />
               ) : field.type === 'checkbox-group' ? (
                  <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
                     {field.options?.map((opt: any) => (
@@ -363,7 +460,7 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
                 <input
                   type={field.type || 'text'}
                   required={field.required}
-                  className="w-full border border-gray-300 rounded p-2"
+                  className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   onChange={(e) => handleChange(field.name, e.target.value)}
                 />
               )}
@@ -696,16 +793,12 @@ const AlmoxarifadoModule = () => {
             <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
                 <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Funcionário</label>
-                    <select 
-                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    <SearchableSelect 
+                        options={auxData.funcionarios?.map((f: any) => ({ value: f.id, label: `${f.nome} - ${f.matricula}` }))}
                         value={selectedReportId}
-                        onChange={(e) => setSelectedReportId(e.target.value)}
-                    >
-                        <option value="">Selecione...</option>
-                        {auxData.funcionarios?.map((f: any) => (
-                            <option key={f.id} value={f.id}>{f.nome} - {f.matricula}</option>
-                        ))}
-                    </select>
+                        onChange={setSelectedReportId}
+                        placeholder="Digite para buscar funcionário..."
+                    />
                 </div>
                 <button 
                     onClick={handleRunReport}
@@ -721,16 +814,12 @@ const AlmoxarifadoModule = () => {
              <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
                 <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Produto</label>
-                    <select 
-                        className="w-full border border-gray-300 rounded-md p-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    <SearchableSelect 
+                        options={auxData.produtos?.map((p: any) => ({ value: p.cod_produto, label: p.descricao }))}
                         value={selectedReportId}
-                        onChange={(e) => setSelectedReportId(e.target.value)}
-                    >
-                        <option value="">Selecione...</option>
-                        {auxData.produtos?.map((p: any) => (
-                            <option key={p.cod_produto} value={p.cod_produto}>{p.descricao}</option>
-                        ))}
-                    </select>
+                        onChange={setSelectedReportId}
+                        placeholder="Digite para buscar produto..."
+                    />
                 </div>
                 <button 
                     onClick={handleRunReport}
@@ -1337,7 +1426,7 @@ const App = () => {
             <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
               {renderModuleButton('almoxarifado', 'Almoxarifado')}
               {renderModuleButton('rh', 'RH')}
-              {renderModuleButton('financeiro', 'Financeiro', true)}
+              {/* Módulo financeiro removido da visualização conforme solicitado */}
               {renderModuleButton('administracao', 'Administração')}
             </div>
 
