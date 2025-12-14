@@ -12,11 +12,9 @@ import {
   LayoutDashboard, 
   LogOut, 
   Settings,
-  Lock,
   Box,
   UserCircle,
-  FileText,
-  BarChart3
+  FileText
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -52,21 +50,27 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
     setLoading(true);
 
     try {
+      // Usar maybeSingle() para não retornar erro se não encontrar usuário, apenas null
+      // Trim remove espaços em branco acidentais
       const { data, error } = await supabase
         .from('usuarios')
         .select('*')
-        .eq('usuario', user)
-        .eq('senha', pass) // Nota: Em produção, usar hash!
-        .single();
+        .eq('usuario', user.trim())
+        .eq('senha', pass.trim()) 
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error('Erro de Login Supabase:', error);
+        toast.error('Erro ao acessar o banco de dados. Verifique se as tabelas foram criadas.');
+      } else if (!data) {
         toast.error('Usuário ou senha incorretos.');
       } else {
         toast.success(`Bem-vindo, ${data.usuario}!`);
         onLogin(data);
       }
     } catch (err) {
-      toast.error('Erro ao conectar ao servidor.');
+      console.error('Erro de Exceção:', err);
+      toast.error('Erro inesperado de conexão.');
     } finally {
       setLoading(false);
     }
@@ -113,6 +117,9 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+        <p className="mt-4 text-xs text-center text-gray-400">
+            Se for o primeiro acesso, certifique-se de ter rodado o script SQL no Supabase.
+        </p>
       </div>
     </div>
   );
@@ -379,8 +386,12 @@ const AlmoxarifadoModule = () => {
           return;
         }
 
-        if (produtoData.quantidade_atual < payload.quantidade) {
-          toast.error(`Estoque insuficiente! Disponível: ${produtoData.quantidade_atual} | Solicitado: ${payload.quantidade}`);
+        // Converter para número para garantir comparação correta
+        const qtdEstoque = Number(produtoData.quantidade_atual);
+        const qtdSaida = Number(payload.quantidade);
+
+        if (qtdEstoque < qtdSaida) {
+          toast.error(`Estoque insuficiente! Disponível: ${qtdEstoque} | Solicitado: ${qtdSaida}`);
           return; // Interrompe o salvamento
         }
       } catch (err) {
