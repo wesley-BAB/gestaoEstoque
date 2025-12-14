@@ -20,7 +20,8 @@ import {
   Briefcase,
   Shield,
   Lock,
-  CheckSquare
+  CheckSquare,
+  Trash2
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -523,6 +524,50 @@ const AlmoxarifadoModule = () => {
     }
   };
 
+  const handleDelete = async (row: any) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
+
+    let table = '';
+    let pkField = 'id';
+    let id = row.id;
+
+    if (view === 'produtos') {
+        table = 'produtos';
+        pkField = 'cod_produto'; // Baseado no select do form anterior
+        id = row.cod_produto;
+    } else if (view === 'fornecedores') {
+        table = 'fornecedores';
+        pkField = 'cod_fornecedor';
+        id = row.cod_fornecedor;
+    } else if (view === 'entradas') {
+        table = 'entradas';
+    } else if (view === 'saidas') {
+        table = 'saidas';
+    }
+
+    if (!table) return;
+    
+    // Fallback se o ID específico não existir no objeto row (ex: se o supabase retornou 'id' padrão)
+    if (!id && row.id) {
+        pkField = 'id';
+        id = row.id;
+    }
+
+    const { error } = await supabase.from(table).delete().eq(pkField, id);
+
+    if (error) {
+        // Erro comum: FK Constraint
+        if (error.code === '23503') {
+             toast.error('Não é possível excluir: Este item está sendo usado em outros registros (ex: entradas ou saídas).');
+        } else {
+             toast.error('Erro ao excluir: ' + error.message);
+        }
+    } else {
+        toast.success('Registro excluído com sucesso.');
+        loadData();
+    }
+  };
+
   const getFormConfig = () => {
     switch (view) {
       case 'produtos':
@@ -601,6 +646,8 @@ const AlmoxarifadoModule = () => {
       headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
     }
     
+    const canDelete = ['produtos', 'fornecedores', 'entradas', 'saidas'].includes(view);
+
     return (
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
         <table className="w-full text-left text-sm text-gray-600">
@@ -609,6 +656,7 @@ const AlmoxarifadoModule = () => {
               {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
               {view === 'entradas' && <><th className="p-4">Produto</th><th className="p-4">Fornecedor</th></>}
               {view === 'saidas' && <><th className="p-4">Produto</th><th className="p-4">Funcionário</th></>}
+              {canDelete && <th className="p-4 text-right">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -623,6 +671,17 @@ const AlmoxarifadoModule = () => {
                 ))}
                 {view === 'entradas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.fornecedores?.nome}</td></>}
                 {view === 'saidas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.funcionarios?.nome}</td></>}
+                {canDelete && (
+                    <td className="p-4 text-right">
+                        <button 
+                            onClick={() => handleDelete(row)}
+                            className="text-red-400 hover:text-red-600 transition-colors p-1"
+                            title="Excluir Registro"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -833,6 +892,44 @@ const RHModule = () => {
         }
     };
 
+    const handleDelete = async (row: any) => {
+        if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
+    
+        let table = '';
+        let pkField = 'id';
+        let id = row.id;
+    
+        if (view === 'funcionarios') {
+            table = 'funcionarios';
+            // Funcionarios usam ID padrão do supabase
+        } else if (view === 'setores') {
+            table = 'setores';
+            pkField = 'cod_setor';
+            id = row.cod_setor;
+        }
+    
+        if (!table) return;
+        
+        // Fallback
+        if (!id && row.id) {
+            pkField = 'id';
+            id = row.id;
+        }
+    
+        const { error } = await supabase.from(table).delete().eq(pkField, id);
+    
+        if (error) {
+            if (error.code === '23503') {
+                 toast.error('Não é possível excluir: Existem funcionários vinculados a este setor.');
+            } else {
+                 toast.error('Erro ao excluir: ' + error.message);
+            }
+        } else {
+            toast.success('Registro excluído com sucesso.');
+            loadData();
+        }
+      };
+
     const getFormConfig = () => {
         if (view === 'funcionarios') {
             return {
@@ -872,6 +969,7 @@ const RHModule = () => {
         if (filteredData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
         
         const headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_setor');
+        const canDelete = ['funcionarios', 'setores'].includes(view);
 
         return (
             <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
@@ -880,6 +978,7 @@ const RHModule = () => {
                         <tr>
                             {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
                             {view === 'funcionarios' && <th className="p-4">Setor</th>}
+                            {canDelete && <th className="p-4 text-right">Ações</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -887,6 +986,17 @@ const RHModule = () => {
                             <tr key={idx} className="hover:bg-gray-50">
                                 {headers.map(h => <td key={h} className="p-4">{row[h]}</td>)}
                                 {view === 'funcionarios' && <td className="p-4">{row.setores?.descricao}</td>}
+                                {canDelete && (
+                                    <td className="p-4 text-right">
+                                        <button 
+                                            onClick={() => handleDelete(row)}
+                                            className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                            title="Excluir Registro"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -1005,6 +1115,24 @@ const AdministracaoModule = () => {
         }
     };
 
+    const handleDelete = async (row: any) => {
+        if (row.usuario === 'Wesley.benevides') {
+            toast.warn('Não é possível excluir o usuário Master.');
+            return;
+        }
+        
+        if (!window.confirm(`Tem certeza que deseja excluir o usuário ${row.usuario}?`)) return;
+
+        const { error } = await supabase.from('usuarios').delete().eq('id', row.id);
+
+        if (error) {
+             toast.error('Erro ao excluir: ' + error.message);
+        } else {
+            toast.success('Usuário excluído com sucesso.');
+            loadData();
+        }
+    };
+
     const getFormConfig = () => {
         if (view === 'usuarios') {
             return {
@@ -1046,6 +1174,7 @@ const AdministracaoModule = () => {
                             <th className="p-4">Usuário</th>
                             <th className="p-4">Email</th>
                             <th className="p-4">Permissões</th>
+                            <th className="p-4 text-right">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1066,6 +1195,17 @@ const AdministracaoModule = () => {
                                             <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">MASTER</span>
                                         )}
                                     </div>
+                                </td>
+                                <td className="p-4 text-right">
+                                    {row.usuario !== 'Wesley.benevides' && (
+                                        <button 
+                                            onClick={() => handleDelete(row)}
+                                            className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                            title="Excluir Usuário"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -1147,7 +1287,7 @@ const App = () => {
   }, [currentUser]);
 
   const renderModuleButton = (module: ModuleType, label: string, disabled: boolean = false) => {
-      if (!hasAccess(module) && !disabled) return null; // Esconde se não tem permissão (exceto se for visualmente desabilitado propositalmente)
+      if (!hasAccess(module) && !disabled) return null; // Esconde visualmente o botão
 
       return (
         <button 
@@ -1163,6 +1303,11 @@ const App = () => {
   };
 
   const renderContent = () => {
+      // Se por algum motivo o estado ainda não atualizou mas o usuário não tem permissão
+      if (!hasAccess(currentModule)) {
+         return <div className="p-10 text-center text-gray-500">Acesso não autorizado a este módulo.</div>;
+      }
+
       switch(currentModule) {
           case 'almoxarifado': return <AlmoxarifadoModule />;
           case 'rh': return <RHModule />;
