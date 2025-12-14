@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
+import { ToastContainer, toast } from 'react-toastify';
 import { 
   Package, 
   Users, 
@@ -13,7 +14,9 @@ import {
   Settings,
   Lock,
   Box,
-  UserCircle
+  UserCircle,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -22,7 +25,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Tipos ---
-type ViewState = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'funcionarios' | 'fornecedores' | 'setores' | 'usuarios';
+type ViewState = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'funcionarios' | 'fornecedores' | 'setores' | 'usuarios' | 'relatorio_funcionario' | 'relatorio_material';
 
 // --- Componentes de UI ---
 
@@ -42,13 +45,11 @@ const Card = ({ title, value, icon: Icon, colorClass }: any) => (
 const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       const { data, error } = await supabase
@@ -59,12 +60,13 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
         .single();
 
       if (error || !data) {
-        setError('Usuário ou senha incorretos.');
+        toast.error('Usuário ou senha incorretos.');
       } else {
+        toast.success(`Bem-vindo, ${data.usuario}!`);
         onLogin(data);
       }
     } catch (err) {
-      setError('Erro ao conectar ao servidor.');
+      toast.error('Erro ao conectar ao servidor.');
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
           <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <Package className="w-8 h-8 text-emerald-600" />
           </div>
-          <h1 className="text-2xl font-bold text-emerald-900">Wes Controle</h1>
+          <h1 className="text-2xl font-bold text-emerald-900">Wes ERP</h1>
           <p className="text-gray-500">Faça login para acessar o sistema</p>
         </div>
 
@@ -103,8 +105,6 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
             />
           </div>
           
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-
           <button 
             type="submit" 
             disabled={loading}
@@ -289,13 +289,13 @@ const AlmoxarifadoModule = () => {
   const loadData = async () => {
     let data: any[] = [];
     
+    // CRUD Básico
     if (view === 'produtos') {
       const res = await supabase.from('produtos').select('*').order('descricao');
       if (res.data) data = res.data;
     } else if (view === 'funcionarios') {
       const res = await supabase.from('funcionarios').select('*, setores(descricao)').order('nome');
       if (res.data) data = res.data;
-      // Carregar setores para o formulário
       const setores = await supabase.from('setores').select('*');
       setAuxData(prev => ({ ...prev, setores: setores.data }));
     } else if (view === 'fornecedores') {
@@ -307,17 +307,44 @@ const AlmoxarifadoModule = () => {
     } else if (view === 'entradas') {
       const res = await supabase.from('entradas').select('*, produtos(descricao), fornecedores(nome)').order('data_entrada', { ascending: false });
       if (res.data) data = res.data;
-      // Aux
       const prod = await supabase.from('produtos').select('*');
       const forn = await supabase.from('fornecedores').select('*');
       setAuxData({ produtos: prod.data, fornecedores: forn.data });
     } else if (view === 'saidas') {
       const res = await supabase.from('saidas').select('*, produtos(descricao), funcionarios(nome)').order('data_saida', { ascending: false });
       if (res.data) data = res.data;
-      // Aux
       const prod = await supabase.from('produtos').select('*');
       const func = await supabase.from('funcionarios').select('*');
       setAuxData({ produtos: prod.data, funcionarios: func.data });
+    } 
+    // Relatórios (Processamento no cliente devido a simplicidade do Supabase JS)
+    else if (view === 'relatorio_funcionario') {
+      const res = await supabase.from('saidas').select('*, funcionarios(nome), produtos(descricao)');
+      if (res.data) {
+        // Agrupar por funcionário
+        const grouped = res.data.reduce((acc: any, curr: any) => {
+          const nome = curr.funcionarios?.nome || 'Desconhecido';
+          if (!acc[nome]) acc[nome] = { funcionario: nome, total_itens: 0, retiradas: 0, ultima_saida: curr.data_saida };
+          acc[nome].total_itens += curr.quantidade;
+          acc[nome].retiradas += 1;
+          if (new Date(curr.data_saida) > new Date(acc[nome].ultima_saida)) acc[nome].ultima_saida = curr.data_saida;
+          return acc;
+        }, {});
+        data = Object.values(grouped);
+      }
+    } else if (view === 'relatorio_material') {
+      const res = await supabase.from('saidas').select('*, produtos(descricao)');
+      if (res.data) {
+        // Agrupar por produto
+        const grouped = res.data.reduce((acc: any, curr: any) => {
+          const desc = curr.produtos?.descricao || 'Desconhecido';
+          if (!acc[desc]) acc[desc] = { produto: desc, total_saida: 0, frequencia: 0 };
+          acc[desc].total_saida += curr.quantidade;
+          acc[desc].frequencia += 1;
+          return acc;
+        }, {});
+        data = Object.values(grouped);
+      }
     }
 
     setListData(data);
@@ -338,11 +365,37 @@ const AlmoxarifadoModule = () => {
 
     if (!table) return;
 
+    // --- VALIDAÇÃO DE ESTOQUE PARA SAÍDAS ---
+    if (view === 'saidas') {
+      try {
+        const { data: produtoData, error: prodError } = await supabase
+          .from('produtos')
+          .select('quantidade_atual, descricao')
+          .eq('cod_produto', payload.produto_id)
+          .single();
+
+        if (prodError || !produtoData) {
+          toast.error('Produto não encontrado!');
+          return;
+        }
+
+        if (produtoData.quantidade_atual < payload.quantidade) {
+          toast.error(`Estoque insuficiente! Disponível: ${produtoData.quantidade_atual} | Solicitado: ${payload.quantidade}`);
+          return; // Interrompe o salvamento
+        }
+      } catch (err) {
+        toast.error('Erro ao verificar estoque.');
+        return;
+      }
+    }
+    // ------------------------------------------
+
     const { error } = await supabase.from(table).insert(payload);
     
     if (error) {
-      alert('Erro ao salvar: ' + error.message);
+      toast.error('Erro ao salvar: ' + error.message);
     } else {
+      toast.success('Registro salvo com sucesso!');
       setShowModal(false);
       loadData();
     }
@@ -416,7 +469,15 @@ const AlmoxarifadoModule = () => {
     
     if (listData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
 
-    const headers = Object.keys(listData[0]).filter(k => typeof listData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
+    // Headers personalizados para relatórios ou genéricos para CRUD
+    let headers: string[] = [];
+    if (view === 'relatorio_funcionario') {
+      headers = ['funcionario', 'total_itens', 'retiradas', 'ultima_saida'];
+    } else if (view === 'relatorio_material') {
+      headers = ['produto', 'total_saida', 'frequencia'];
+    } else {
+      headers = Object.keys(listData[0]).filter(k => typeof listData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
+    }
     
     return (
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
@@ -424,7 +485,7 @@ const AlmoxarifadoModule = () => {
           <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
             <tr>
               {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
-              {/* Colunas extras para FKs */}
+              {/* Colunas extras para FKs (apenas em views normais) */}
               {view === 'funcionarios' && <th className="p-4">Setor</th>}
               {view === 'entradas' && <><th className="p-4">Produto</th><th className="p-4">Fornecedor</th></>}
               {view === 'saidas' && <><th className="p-4">Produto</th><th className="p-4">Funcionário</th></>}
@@ -433,7 +494,13 @@ const AlmoxarifadoModule = () => {
           <tbody className="divide-y divide-gray-100">
             {listData.map((row, idx) => (
               <tr key={idx} className="hover:bg-gray-50">
-                {headers.map(h => <td key={h} className="p-4">{row[h]}</td>)}
+                {headers.map(h => (
+                  <td key={h} className="p-4">
+                     {h.includes('data') || h === 'ultima_saida' 
+                       ? new Date(row[h]).toLocaleDateString('pt-BR') 
+                       : row[h]}
+                  </td>
+                ))}
                 {/* Dados Extras FK */}
                 {view === 'funcionarios' && <td className="p-4">{row.setores?.descricao}</td>}
                 {view === 'entradas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.fornecedores?.nome}</td></>}
@@ -449,7 +516,7 @@ const AlmoxarifadoModule = () => {
   return (
     <div className="flex h-[calc(100vh-64px)]">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
         <div className="p-4">
           <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Principal</h2>
           <nav className="space-y-1">
@@ -467,6 +534,18 @@ const AlmoxarifadoModule = () => {
             </button>
             <button onClick={() => setView('saidas')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'saidas' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
               <ArrowUpCircle className="w-5 h-5 mr-3 text-red-600" /> Registrar Saída
+            </button>
+          </nav>
+        </div>
+
+        <div className="p-4 pt-0">
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Relatórios</h2>
+          <nav className="space-y-1">
+            <button onClick={() => setView('relatorio_funcionario')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_funcionario' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+              <UserCircle className="w-5 h-5 mr-3" /> Saída por Funcionário
+            </button>
+            <button onClick={() => setView('relatorio_material')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_material' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+              <FileText className="w-5 h-5 mr-3" /> Saída por Material
             </button>
           </nav>
         </div>
@@ -493,7 +572,9 @@ const AlmoxarifadoModule = () => {
       {/* Main Content */}
       <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 capitalize">{view}</h1>
+          <h1 className="text-2xl font-bold text-gray-800 capitalize">
+            {view.replace('relatorio_', 'Relatório de ').replace('_', ' ')}
+          </h1>
           {formConfig && (
             <button 
               onClick={() => setShowModal(true)}
@@ -526,57 +607,61 @@ const App = () => {
 
   const handleLogout = () => setCurrentUser(null);
 
-  if (!currentUser) {
-    return <Login onLogin={setCurrentUser} />;
-  }
-
   return (
-    <div className="flex flex-col h-screen">
-      {/* Top Bar */}
-      <header className="bg-emerald-800 text-white shadow-lg h-16 flex items-center justify-between px-6 z-10">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-800 font-bold text-lg">
-            W
-          </div>
-          <span className="font-bold text-xl tracking-wide">Wes Controle</span>
+    <>
+      <ToastContainer position="top-right" autoClose={3000} />
+      
+      {!currentUser ? (
+        <Login onLogin={setCurrentUser} />
+      ) : (
+        <div className="flex flex-col h-screen">
+          {/* Top Bar */}
+          <header className="bg-emerald-800 text-white shadow-lg h-16 flex items-center justify-between px-6 z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-800 font-bold text-lg">
+                W
+              </div>
+              <span className="font-bold text-xl tracking-wide">Wes ERP</span>
+            </div>
+
+            {/* Módulos Menu (Simulado) */}
+            <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
+              <button className="px-4 py-1.5 bg-emerald-600 rounded shadow text-sm font-medium">Almoxarifado</button>
+              <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">Financeiro</button>
+              <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">RH</button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end mr-2">
+                <span className="text-sm font-medium">{currentUser.usuario}</span>
+                <span className="text-xs text-emerald-300">Administrador</span>
+              </div>
+              
+              <div className="h-8 w-[1px] bg-emerald-600 mx-1"></div>
+
+              <button 
+                onClick={() => toast.info('Funcionalidade de alterar senha será implementada em breve.')} 
+                className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-700 rounded-full transition" 
+                title="Alterar Senha"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              
+              <button 
+                onClick={handleLogout} 
+                className="p-2 text-red-300 hover:text-red-100 hover:bg-red-900/50 rounded-full transition" 
+                title="Sair"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
+          </header>
+
+          {/* Conteúdo do Módulo */}
+          <AlmoxarifadoModule />
         </div>
-
-        {/* Módulos Menu (Simulado) */}
-        <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
-          <button className="px-4 py-1.5 bg-emerald-600 rounded shadow text-sm font-medium">Almoxarifado</button>
-          <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">Financeiro</button>
-          <button className="px-4 py-1.5 text-emerald-200 hover:text-white text-sm font-medium opacity-50 cursor-not-allowed">RH</button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end mr-2">
-            <span className="text-sm font-medium">{currentUser.usuario}</span>
-            <span className="text-xs text-emerald-300">Administrador</span>
-          </div>
-          
-          <div className="h-8 w-[1px] bg-emerald-600 mx-1"></div>
-
-          <button 
-            onClick={() => alert('Funcionalidade de alterar senha será implementada em breve.')} 
-            className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-700 rounded-full transition" 
-            title="Alterar Senha"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-          
-          <button 
-            onClick={handleLogout} 
-            className="p-2 text-red-300 hover:text-red-100 hover:bg-red-900/50 rounded-full transition" 
-            title="Sair"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Conteúdo do Módulo */}
-      <AlmoxarifadoModule />
-    </div>
+      )}
+    </>
   );
 };
 
