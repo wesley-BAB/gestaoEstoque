@@ -23,7 +23,9 @@ import {
   CheckSquare,
   Trash2,
   ChevronDown,
-  X
+  X,
+  Home,
+  PieChart
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -32,7 +34,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Tipos ---
-type ModuleType = 'almoxarifado' | 'rh' | 'administracao' | 'financeiro';
+type ModuleType = 'home' | 'almoxarifado' | 'rh' | 'administracao' | 'financeiro';
 type AlmoxarifadoView = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'fornecedores' | 'relatorio_funcionario' | 'relatorio_material';
 type RHView = 'dashboard' | 'funcionarios' | 'setores';
 type AdminView = 'dashboard' | 'usuarios';
@@ -174,6 +176,7 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
         toast.error('Usuário ou senha incorretos.');
       } else {
         toast.success(`Bem-vindo, ${data.usuario}!`);
+        localStorage.setItem('wes_erp_user', JSON.stringify(data)); // Salva sessão
         onLogin(data);
       }
     } catch (err) {
@@ -225,12 +228,90 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-        <p className="mt-4 text-xs text-center text-gray-400">
-            Se for o primeiro acesso, certifique-se de ter rodado o script SQL no Supabase.
-        </p>
       </div>
     </div>
   );
+};
+
+// --- Tela Inicial (Home) ---
+const HomeView = ({ currentUser, onSelectModule, hasAccess }: any) => {
+    return (
+        <div className="p-8 max-w-6xl mx-auto">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-800">Olá, {currentUser.usuario}!</h1>
+                <p className="text-gray-500 mt-2">Selecione um módulo para começar a trabalhar.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Card Almoxarifado */}
+                {hasAccess('almoxarifado') && (
+                    <div 
+                        onClick={() => onSelectModule('almoxarifado')}
+                        className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                                <Package className="w-8 h-8 text-blue-600" />
+                            </div>
+                            <ArrowRightLeft className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800">Almoxarifado</h3>
+                        <p className="text-gray-500 text-sm mt-2">Gestão de produtos, entradas, saídas e controle de estoque.</p>
+                    </div>
+                )}
+
+                {/* Card RH */}
+                {hasAccess('rh') && (
+                    <div 
+                        onClick={() => onSelectModule('rh')}
+                        className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                                <Users className="w-8 h-8 text-purple-600" />
+                            </div>
+                            <ArrowRightLeft className="w-5 h-5 text-gray-300 group-hover:text-purple-500 transition-colors" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800">Recursos Humanos</h3>
+                        <p className="text-gray-500 text-sm mt-2">Gestão de funcionários, setores e hierarquia.</p>
+                    </div>
+                )}
+                 
+                 {/* Card Financeiro (Desabilitado visualmente mas renderizado se tiver acesso) */}
+                 {hasAccess('financeiro') && (
+                    <div 
+                        className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-100 cursor-not-allowed opacity-70"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="p-3 bg-gray-200 rounded-lg">
+                                <PieChart className="w-8 h-8 text-gray-500" />
+                            </div>
+                            <Lock className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-600">Financeiro</h3>
+                        <p className="text-gray-500 text-sm mt-2">Módulo em desenvolvimento. Consulte o administrador.</p>
+                    </div>
+                )}
+
+                {/* Card Admin */}
+                {hasAccess('administracao') && (
+                    <div 
+                        onClick={() => onSelectModule('administracao')}
+                        className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="p-3 bg-gray-800 rounded-lg group-hover:bg-gray-700 transition-colors">
+                                <Shield className="w-8 h-8 text-white" />
+                            </div>
+                            <Settings className="w-5 h-5 text-gray-300 group-hover:text-gray-600 transition-colors" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800">Administração</h3>
+                        <p className="text-gray-500 text-sm mt-2">Gestão de usuários, permissões e configurações do sistema.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 // --- Dashboard View (Almoxarifado) ---
@@ -1352,15 +1433,32 @@ const AdministracaoModule = () => {
 // --- App Principal ---
 const App = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [currentModule, setCurrentModule] = useState<ModuleType>('almoxarifado');
+  const [currentModule, setCurrentModule] = useState<ModuleType>('home');
 
-  const handleLogout = () => setCurrentUser(null);
+  // Recuperar sessão ao iniciar
+  useEffect(() => {
+    const savedUser = localStorage.getItem('wes_erp_user');
+    if (savedUser) {
+        try {
+            setCurrentUser(JSON.parse(savedUser));
+        } catch (e) {
+            console.error('Erro ao restaurar sessão', e);
+        }
+    }
+  }, []);
+
+  const handleLogout = () => {
+      localStorage.removeItem('wes_erp_user');
+      setCurrentUser(null);
+      setCurrentModule('home');
+  };
 
   // Determinar permissões
   const isMaster = currentUser?.usuario === 'Wesley.benevides';
   
   const hasAccess = (module: ModuleType) => {
     if (!currentUser) return false;
+    if (module === 'home') return true;
     if (isMaster) return true;
     return currentUser.permissoes && currentUser.permissoes.includes(module);
   };
@@ -1368,15 +1466,18 @@ const App = () => {
   // Redirecionar se perder acesso ao modulo atual
   useEffect(() => {
     if (currentUser && !hasAccess(currentModule)) {
-        // Tenta encontrar o primeiro módulo permitido
-        const modules: ModuleType[] = ['almoxarifado', 'rh', 'financeiro', 'administracao'];
-        const firstAllowed = modules.find(m => hasAccess(m));
-        if (firstAllowed) setCurrentModule(firstAllowed);
+        setCurrentModule('home');
     }
-  }, [currentUser]);
+  }, [currentUser, currentModule]);
 
   const renderModuleButton = (module: ModuleType, label: string, disabled: boolean = false) => {
-      if (!hasAccess(module) && !disabled) return null; // Esconde visualmente o botão
+      // Se estamos na home, não mostramos os botões de módulo no topo, pois o usuário deve usar os cards.
+      // OU, mantemos para facilitar a navegação rápida.
+      // O requisito diz: "somente ao clicar no modulo carrega os menus e telas" e "Cria uma tela inicial".
+      // Vamos mostrar os botões apenas se NÃO estivermos na home, para dar contexto de "dentro do módulo",
+      // ou sempre mostrar se tiver permissão. Vamos mostrar sempre para agilidade, mas o comportamento principal é via Home.
+      
+      if (!hasAccess(module) && !disabled) return null; 
 
       return (
         <button 
@@ -1398,6 +1499,7 @@ const App = () => {
       }
 
       switch(currentModule) {
+          case 'home': return <HomeView currentUser={currentUser} onSelectModule={setCurrentModule} hasAccess={hasAccess} />;
           case 'almoxarifado': return <AlmoxarifadoModule />;
           case 'rh': return <RHModule />;
           case 'administracao': return <AdministracaoModule />;
@@ -1415,20 +1517,29 @@ const App = () => {
         <div className="flex flex-col h-screen">
           {/* Top Bar */}
           <header className="bg-emerald-800 text-white shadow-lg h-16 flex items-center justify-between px-6 z-10">
-            <div className="flex items-center gap-4">
+            <div 
+                className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setCurrentModule('home')}
+                title="Ir para o Início"
+            >
               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-800 font-bold text-lg">
                 W
               </div>
               <span className="font-bold text-xl tracking-wide">Wes ERP</span>
             </div>
 
-            {/* Módulos Menu */}
-            <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
-              {renderModuleButton('almoxarifado', 'Almoxarifado')}
-              {renderModuleButton('rh', 'RH')}
-              {/* Módulo financeiro removido da visualização conforme solicitado */}
-              {renderModuleButton('administracao', 'Administração')}
-            </div>
+            {/* Módulos Menu - Só exibe se NÃO estiver na home, para focar a Home nos cards */}
+            {currentModule !== 'home' && (
+                <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
+                {renderModuleButton('almoxarifado', 'Almoxarifado')}
+                {renderModuleButton('rh', 'RH')}
+                {/* Financeiro removido visualmente */}
+                {renderModuleButton('administracao', 'Administração')}
+                </div>
+            )}
+             {/* Se estiver na home, espaço vazio para manter alinhamento ou nada */}
+            {currentModule === 'home' && <div className="flex-1"></div>}
+
 
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end mr-2">
