@@ -26,7 +26,10 @@ import {
   X,
   Home,
   PieChart,
-  KeyRound
+  KeyRound,
+  User,
+  ArrowRight,
+  PenLine
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -228,44 +231,59 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
   };
 
   return (
-    <div className="min-h-screen bg-emerald-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Package className="w-8 h-8 text-emerald-600" />
+    <div className="min-h-screen bg-[#f3f6f8] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Gradient Effect */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-200/20 rounded-full blur-[100px]"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-200/20 rounded-full blur-[100px]"></div>
+
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[420px] p-10 z-10 relative">
+        <div className="flex flex-col items-center mb-10">
+          <div className="bg-emerald-500 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-200">
+            <PenLine className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-emerald-900">Wes ERP</h1>
-          <p className="text-gray-500">Faça login para acessar o sistema</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">WES</h1>
+          <p className="text-emerald-500 text-[10px] font-bold tracking-[0.2em] mt-1.5 uppercase">Gestão Inteligente</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
-            <input 
-              type="text" 
-              value={user}
-              onChange={(e) => setUser(e.target.value)}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              placeholder="Ex: Wesley.benevides"
-            />
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Usuário</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+              </div>
+              <input 
+                type="text" 
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+                className="w-full bg-slate-100/80 border-none rounded-xl py-3.5 pl-12 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200"
+                placeholder="Ex: wesley.benevides"
+              />
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-            <input 
-              type="password" 
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              placeholder="••••••••"
-            />
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Senha</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+              </div>
+              <input 
+                type="password" 
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+                className="w-full bg-slate-100/80 border-none rounded-xl py-3.5 pl-12 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all duration-200"
+                placeholder="••••••••"
+              />
+            </div>
           </div>
           
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-emerald-600 text-white py-2 rounded-md hover:bg-emerald-700 transition duration-200 font-medium"
+            className="w-full bg-emerald-500 text-white py-3.5 rounded-xl hover:bg-emerald-600 transition-all duration-200 font-semibold shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 mt-4"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Acessando...' : 'Entrar'}
+            {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
       </div>
