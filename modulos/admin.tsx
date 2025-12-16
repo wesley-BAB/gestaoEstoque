@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserCircle, Truck, LayoutDashboard, Trash2 } from 'lucide-react';
+import { Users, UserCircle, Truck, LayoutDashboard, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { supabase } from '../supabase';
-import { Card, SimpleForm } from '../ui';
+import { Card, SimpleForm, ConfirmModal } from '../ui';
 import { AdminView } from '../types';
 import { sha256 } from '../utils';
 
@@ -41,6 +41,11 @@ export const AdministracaoModule = () => {
     const [listData, setListData] = useState<any[]>([]);
     const [auxData, setAuxData] = useState<any>({});
 
+    // Estados para edição e exclusão
+    const [editingItem, setEditingItem] = useState<any>(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<any>(null);
+
     useEffect(() => {
         setListData([]);
         loadData();
@@ -63,13 +68,8 @@ export const AdministracaoModule = () => {
 
     const handleSave = async (data: any) => {
         if (view === 'usuarios') {
-            let hashedPassword = data.senha;
-            if (data.senha) {
-                hashedPassword = await sha256(data.senha);
-            }
-            const payload = {
+            const payload: any = {
                 usuario: data.usuario,
-                senha: hashedPassword,
                 email: data.email,
                 telefone: data.telefone,
                 permissoes: data.permissoes || [],
@@ -77,27 +77,66 @@ export const AdministracaoModule = () => {
                 funcionario_id: data.tipo === 'funcionario' ? data.funcionario_id : null,
                 fornecedor_id: data.tipo === 'terceiro' ? data.fornecedor_id : null
             };
-            const { error } = await supabase.from('usuarios').insert(payload);
+
+            // Se for novo ou se a senha foi preenchida na edição, aplica hash
+            if (data.senha && data.senha.trim() !== '') {
+                payload.senha = await sha256(data.senha);
+            } else if (!editingItem) {
+                toast.error('Senha é obrigatória para novos usuários.');
+                return;
+            }
+
+            let error;
+            if (editingItem) {
+                 const { error: err } = await supabase.from('usuarios').update(payload).eq('id', editingItem.id);
+                 error = err;
+            } else {
+                 const { error: err } = await supabase.from('usuarios').insert(payload);
+                 error = err;
+            }
+
             if (error) toast.error('Erro ao salvar usuário: ' + error.message);
-            else { toast.success('Usuário salvo com sucesso!'); setShowModal(false); loadData(); }
+            else { 
+                toast.success('Usuário salvo com sucesso!'); 
+                setShowModal(false); 
+                setEditingItem(null); 
+                loadData(); 
+            }
         }
     };
 
-    const handleDelete = async (row: any) => {
-        if (row.usuario === 'Wesley.benevides') { toast.warn('Não é possível excluir o usuário Master.'); return; }
-        if (!window.confirm(`Tem certeza que deseja excluir o usuário ${row.usuario}?`)) return;
-        const { error } = await supabase.from('usuarios').delete().eq('id', row.id);
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+        const { error } = await supabase.from('usuarios').delete().eq('id', itemToDelete.id);
         if (error) toast.error('Erro ao excluir: ' + error.message);
-        else { toast.success('Usuário excluído com sucesso.'); loadData(); }
+        else { 
+            toast.success('Usuário excluído com sucesso.'); 
+            loadData(); 
+        }
+        setDeleteModalOpen(false);
+        setItemToDelete(null);
+    };
+
+    const handleDeleteClick = (row: any) => {
+        if (row.usuario === 'Wesley.benevides') { toast.warn('Não é possível excluir o usuário Master.'); return; }
+        setItemToDelete(row);
+        setDeleteModalOpen(true);
+    };
+
+    const handleEditClick = (row: any) => {
+        // Limpar a senha ao editar para não mostrar o hash
+        const { senha, ...rest } = row;
+        setEditingItem(rest);
+        setShowModal(true);
     };
 
     const getFormConfig = () => {
         if (view === 'usuarios') {
             return {
-                title: 'Novo Usuário',
+                title: editingItem ? 'Editar Usuário' : 'Novo Usuário',
                 fields: [
                     { name: 'usuario', label: 'Nome de Usuário', required: true },
-                    { name: 'senha', label: 'Senha', type: 'password', required: true },
+                    { name: 'senha', label: editingItem ? 'Senha (Deixe em branco para manter)' : 'Senha', type: 'password', required: !editingItem },
                     { name: 'email', label: 'E-mail', type: 'email' },
                     { name: 'telefone', label: 'Telefone' },
                     { name: 'tipo', label: 'Tipo de Usuário', type: 'select', required: true, options: [{ value: 'funcionario', label: 'Funcionário Interno (RH)' }, { value: 'terceiro', label: 'Terceiro (Fornecedor)' }] },
@@ -151,8 +190,13 @@ export const AdministracaoModule = () => {
                                                 {row.usuario === 'Wesley.benevides' && <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">MASTER</span>}
                                             </div>
                                         </td>
-                                        <td className="text-right">
-                                            {row.usuario !== 'Wesley.benevides' && (<button onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-600 transition-colors p-1" title="Excluir Usuário"><Trash2 className="w-4 h-4" /></button>)}
+                                        <td className="text-right whitespace-nowrap">
+                                            {row.usuario !== 'Wesley.benevides' && (
+                                                <>
+                                                <button onClick={() => handleEditClick(row)} className="text-blue-400 hover:text-blue-600 transition-colors p-1 mr-2" title="Editar"><Edit className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteClick(row)} className="text-red-400 hover:text-red-600 transition-colors p-1" title="Excluir Usuário"><Trash2 className="w-4 h-4" /></button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -176,9 +220,10 @@ export const AdministracaoModule = () => {
                 </div>
             </aside>
             <main className="main-content">
-                 <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view === 'dashboard' ? 'Painel Administrativo' : 'Gestão de Usuários'}</h1>{formConfig && (<button onClick={() => setShowModal(true)} className="btn-primary"><span>+ Novo Usuário</span></button>)}</div>
+                 <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view === 'dashboard' ? 'Painel Administrativo' : 'Gestão de Usuários'}</h1>{formConfig && (<button onClick={() => { setEditingItem(null); setShowModal(true); }} className="btn-primary"><span>+ Novo Usuário</span></button>)}</div>
                 {renderTable()}
-                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} initialValues={editingItem} />)}
+                {deleteModalOpen && (<ConfirmModal title="Confirmar Exclusão" message={`Tem certeza que deseja excluir o usuário ${itemToDelete?.usuario}?`} onConfirm={confirmDelete} onCancel={() => setDeleteModalOpen(false)} isDestructive={true} />)}
             </main>
         </div>
     );

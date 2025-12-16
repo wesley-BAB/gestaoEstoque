@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Briefcase, LayoutDashboard, Box, Search, Trash2 } from 'lucide-react';
+import { Users, Briefcase, LayoutDashboard, Box, Search, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { supabase } from '../supabase';
-import { Card, SimpleForm } from '../ui';
+import { Card, SimpleForm, ConfirmModal } from '../ui';
 import { RHView } from '../types';
 
 const DashboardRH = () => {
@@ -32,6 +32,11 @@ export const RHModule = () => {
     const [listData, setListData] = useState<any[]>([]);
     const [auxData, setAuxData] = useState<any>({});
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Estados para edição e exclusão
+    const [editingItem, setEditingItem] = useState<any>(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<any>(null);
   
     useEffect(() => { setSearchTerm(''); setListData([]); loadData(); }, [view]);
   
@@ -50,26 +55,76 @@ export const RHModule = () => {
     };
 
     const handleSave = async (data: any) => {
-        let table = ''; if (view === 'funcionarios') table = 'funcionarios'; else if (view === 'setores') table = 'setores';
+        let table = ''; 
+        let pkField = 'id';
+        let pkValue = null;
+
+        if (view === 'funcionarios') {
+            table = 'funcionarios';
+            pkValue = editingItem?.id;
+        } else if (view === 'setores') {
+            table = 'setores';
+            pkField = 'cod_setor';
+            pkValue = editingItem?.cod_setor;
+        }
+
         if (!table) return;
-        const { error } = await supabase.from(table).insert(data);
-        if (error) toast.error('Erro ao salvar: ' + error.message); else { toast.success('Registro salvo com sucesso!'); setShowModal(false); loadData(); }
+
+        let error;
+        if (editingItem) {
+             const { setores, ...cleanPayload } = data; // Remove join
+             const { error: err } = await supabase.from(table).update(cleanPayload).eq(pkField, pkValue);
+             error = err;
+        } else {
+             const { error: err } = await supabase.from(table).insert(data);
+             error = err;
+        }
+
+        if (error) toast.error('Erro ao salvar: ' + error.message); 
+        else { 
+            toast.success('Registro salvo com sucesso!'); 
+            setShowModal(false); 
+            setEditingItem(null); 
+            loadData(); 
+        }
     };
 
-    const handleDelete = async (row: any) => {
-        if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
-        let table = ''; let pkField = 'id'; let id = row.id;
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+
+        let table = ''; let pkField = 'id'; let id = itemToDelete.id;
         if (view === 'funcionarios') { table = 'funcionarios'; } 
-        else if (view === 'setores') { table = 'setores'; pkField = 'cod_setor'; id = row.cod_setor; }
-        if (!table) return; if (!id && row.id) { pkField = 'id'; id = row.id; }
+        else if (view === 'setores') { table = 'setores'; pkField = 'cod_setor'; id = itemToDelete.cod_setor; }
+        
+        if (!table) return;
+
         const { error } = await supabase.from(table).delete().eq(pkField, id);
-        if (error) { if (error.code === '23503') toast.error('Não é possível excluir: Existem funcionários vinculados a este setor.'); else toast.error('Erro ao excluir: ' + error.message); } 
-        else { toast.success('Registro excluído com sucesso.'); loadData(); }
+        
+        if (error) { 
+            if (error.code === '23503') toast.error('Não é possível excluir: Existem funcionários vinculados a este setor.'); 
+            else toast.error('Erro ao excluir: ' + error.message); 
+        } 
+        else { 
+            toast.success('Registro excluído com sucesso.'); 
+            loadData(); 
+        }
+        setDeleteModalOpen(false);
+        setItemToDelete(null);
       };
 
+    const handleDeleteClick = (row: any) => {
+        setItemToDelete(row);
+        setDeleteModalOpen(true);
+    };
+
+    const handleEditClick = (row: any) => {
+        setEditingItem(row);
+        setShowModal(true);
+    };
+
     const getFormConfig = () => {
-        if (view === 'funcionarios') return { title: 'Novo Funcionário', fields: [ { name: 'nome', label: 'Nome Completo', required: true }, { name: 'matricula', label: 'Matrícula', required: true }, { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) } ] };
-        if (view === 'setores') return { title: 'Novo Setor', fields: [ { name: 'descricao', label: 'Descrição do Setor', required: true } ] };
+        if (view === 'funcionarios') return { title: editingItem ? 'Editar Funcionário' : 'Novo Funcionário', fields: [ { name: 'nome', label: 'Nome Completo', required: true }, { name: 'matricula', label: 'Matrícula', required: true }, { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) } ] };
+        if (view === 'setores') return { title: editingItem ? 'Editar Setor' : 'Novo Setor', fields: [ { name: 'descricao', label: 'Descrição do Setor', required: true } ] };
         return null;
     };
     const formConfig = getFormConfig();
@@ -103,7 +158,12 @@ export const RHModule = () => {
                             <tr key={idx}>
                                 {headers.map(h => <td key={h}>{row[h]}</td>)}
                                 {view === 'funcionarios' && <td>{row.setores?.descricao}</td>}
-                                {canDelete && (<td className="text-right"><button onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-600 transition-colors p-1"><Trash2 className="w-4 h-4" /></button></td>)}
+                                {canDelete && (
+                                    <td className="text-right whitespace-nowrap">
+                                        <button onClick={() => handleEditClick(row)} className="text-blue-400 hover:text-blue-600 transition-colors p-1 mr-2" title="Editar"><Edit className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeleteClick(row)} className="text-red-400 hover:text-red-600 transition-colors p-1" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -130,10 +190,11 @@ export const RHModule = () => {
                 </div>
             </aside>
             <main className="main-content">
-                <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view === 'dashboard' ? 'Painel de RH' : `Gestão de ${view}`}</h1>{formConfig && (<button onClick={() => setShowModal(true)} className="btn-primary"><span>+ Novo Registro</span></button>)}</div>
+                <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view === 'dashboard' ? 'Painel de RH' : `Gestão de ${view}`}</h1>{formConfig && (<button onClick={() => { setEditingItem(null); setShowModal(true); }} className="btn-primary"><span>+ Novo Registro</span></button>)}</div>
                 {['funcionarios', 'setores'].includes(view) && (<div className="relative mb-6"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-400" /></div><input type="text" className="input-search" placeholder={`Pesquisar em ${view}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>)}
                 {renderTable()}
-                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} initialValues={editingItem} />)}
+                {deleteModalOpen && (<ConfirmModal title="Confirmar Exclusão" message="Tem certeza que deseja excluir este registro?" onConfirm={confirmDelete} onCancel={() => setDeleteModalOpen(false)} isDestructive={true} />)}
             </main>
         </div>
     );

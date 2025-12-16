@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, AlertTriangle } from 'lucide-react';
 import { maskCNPJ, maskPhone } from './utils';
 
 export const Card = ({ title, value, icon: Icon, colorClass }: any) => (
@@ -14,6 +14,38 @@ export const Card = ({ title, value, icon: Icon, colorClass }: any) => (
   </div>
 );
 
+export const ConfirmModal = ({ title, message, onConfirm, onCancel, confirmText = "Confirmar", cancelText = "Cancelar", isDestructive = false }: any) => {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+                <div className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className={`p-3 rounded-full ${isDestructive ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                            <AlertTriangle className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                    </div>
+                    <p className="text-gray-600 mb-6">{message}</p>
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={onCancel} 
+                            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                        >
+                            {cancelText}
+                        </button>
+                        <button 
+                            onClick={onConfirm} 
+                            className={`px-4 py-2 text-white rounded-lg font-medium transition-colors shadow-sm ${isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                        >
+                            {confirmText}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const SearchableSelect = ({ options, value, onChange, placeholder, required }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,7 +57,7 @@ export const SearchableSelect = ({ options, value, onChange, placeholder, requir
       if (selectedOption) {
         setSearchTerm(selectedOption.label);
       }
-    } else {
+    } else if (!value) {
         setSearchTerm('');
     }
   }, [value, options]);
@@ -105,8 +137,14 @@ export const SearchableSelect = ({ options, value, onChange, placeholder, requir
   );
 };
 
-export const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
+export const SimpleForm = ({ title, fields, onSubmit, onClose, initialValues = {} }: any) => {
   const [formData, setFormData] = useState<any>({});
+
+  useEffect(() => {
+    if (initialValues) {
+        setFormData({ ...initialValues });
+    }
+  }, [initialValues]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,10 +179,10 @@ export const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-fadeIn">
         <div className="px-6 py-4 bg-emerald-600 flex justify-between items-center">
           <h3 className="text-white font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-white hover:text-emerald-200">✕</button>
+          <button onClick={onClose} className="text-white hover:text-emerald-200 font-bold text-xl">&times;</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {fields.map((field: any) => {
@@ -175,6 +213,7 @@ export const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
                                 <input 
                                     type="checkbox"
                                     value={opt.value}
+                                    checked={formData[field.name]?.includes(opt.value)}
                                     onChange={(e) => handleCheckboxGroupChange(field.name, opt.value, e.target.checked)}
                                     className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
                                 />
@@ -197,7 +236,7 @@ export const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
           })}
           <div className="flex justify-end gap-3 mt-6">
             <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
-            <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">Salvar</button>
+            <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-medium">Salvar</button>
           </div>
         </form>
       </div>

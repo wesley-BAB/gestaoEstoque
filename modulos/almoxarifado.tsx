@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Box, ArrowRightLeft, LayoutDashboard, ArrowDownCircle, ArrowUpCircle, UserCircle, FileText, Truck, Filter, Search, Trash2 } from 'lucide-react';
+import { Package, Box, ArrowRightLeft, LayoutDashboard, ArrowDownCircle, ArrowUpCircle, UserCircle, FileText, Truck, Filter, Search, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { supabase } from '../supabase';
-import { Card, SimpleForm, SearchableSelect } from '../ui';
+import { Card, SimpleForm, SearchableSelect, ConfirmModal } from '../ui';
 import { AlmoxarifadoView } from '../types';
 
 const DashboardAlmoxarifado = () => {
@@ -79,6 +79,11 @@ export const AlmoxarifadoModule = () => {
     const [auxData, setAuxData] = useState<any>({}); 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedReportId, setSelectedReportId] = useState('');
+    
+    // Estados para edição e exclusão
+    const [editingItem, setEditingItem] = useState<any>(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<any>(null);
   
     useEffect(() => { setSearchTerm(''); setSelectedReportId(''); setListData([]); loadData(); }, [view]);
   
@@ -127,38 +132,96 @@ export const AlmoxarifadoModule = () => {
     };
   
     const handleSave = async (data: any) => {
-      let table = ''; let payload = { ...data };
-      switch(view) { case 'produtos': table = 'produtos'; break; case 'fornecedores': table = 'fornecedores'; break; case 'entradas': table = 'entradas'; break; case 'saidas': table = 'saidas'; break; }
+      let table = ''; 
+      let payload = { ...data };
+      let pkField = 'id';
+      let pkValue = null;
+
+      switch(view) { 
+          case 'produtos': 
+            table = 'produtos'; 
+            pkField = 'cod_produto';
+            pkValue = editingItem?.cod_produto;
+            break; 
+          case 'fornecedores': 
+            table = 'fornecedores'; 
+            pkField = 'cod_fornecedor';
+            pkValue = editingItem?.cod_fornecedor;
+            break; 
+          case 'entradas': table = 'entradas'; pkValue = editingItem?.id; break; 
+          case 'saidas': table = 'saidas'; pkValue = editingItem?.id; break; 
+      }
       if (!table) return;
-      if (view === 'saidas') {
+
+      // Validação de Estoque para Saídas
+      if (view === 'saidas' && !editingItem) { // Apenas na criação
         try {
           const { data: produtoData, error: prodError } = await supabase.from('produtos').select('quantidade_atual, descricao').eq('cod_produto', payload.produto_id).single();
           if (prodError || !produtoData) { toast.error('Produto não encontrado!'); return; }
           if (Number(produtoData.quantidade_atual) < Number(payload.quantidade)) { toast.error(`Estoque insuficiente! Disponível: ${produtoData.quantidade_atual} | Solicitado: ${payload.quantidade}`); return; }
         } catch (err) { toast.error('Erro ao verificar estoque.'); return; }
       }
-      const { error } = await supabase.from(table).insert(payload);
-      if (error) toast.error('Erro ao salvar: ' + error.message); else { toast.success('Registro salvo com sucesso!'); setShowModal(false); loadData(); }
+
+      let error;
+      if (editingItem) {
+          // Remover campos de relacionamento/join que não existem na tabela
+          const { produtos, fornecedores, funcionarios, ...cleanPayload } = payload;
+          const { error: err } = await supabase.from(table).update(cleanPayload).eq(pkField, pkValue);
+          error = err;
+      } else {
+          const { error: err } = await supabase.from(table).insert(payload);
+          error = err;
+      }
+
+      if (error) toast.error('Erro ao salvar: ' + error.message); 
+      else { 
+          toast.success('Registro salvo com sucesso!'); 
+          setShowModal(false); 
+          setEditingItem(null); 
+          loadData(); 
+      }
+    };
+
+    const confirmDelete = async () => {
+      if (!itemToDelete) return;
+      
+      let table = ''; let pkField = 'id'; let id = itemToDelete.id;
+      if (view === 'produtos') { table = 'produtos'; pkField = 'cod_produto'; id = itemToDelete.cod_produto; }
+      else if (view === 'fornecedores') { table = 'fornecedores'; pkField = 'cod_fornecedor'; id = itemToDelete.cod_fornecedor; }
+      else if (view === 'entradas') { table = 'entradas'; } else if (view === 'saidas') { table = 'saidas'; }
+      
+      if (!table) return;
+
+      const { error } = await supabase.from(table).delete().eq(pkField, id);
+      
+      if (error) { 
+          if (error.code === '23503') toast.error('Não é possível excluir: Este item está sendo usado em outros registros.'); 
+          else toast.error('Erro ao excluir: ' + error.message); 
+      }
+      else { 
+          toast.success('Registro excluído com sucesso.'); 
+          loadData(); 
+      }
+      setDeleteModalOpen(false);
+      setItemToDelete(null);
     };
   
-    const handleDelete = async (row: any) => {
-      if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
-      let table = ''; let pkField = 'id'; let id = row.id;
-      if (view === 'produtos') { table = 'produtos'; pkField = 'cod_produto'; id = row.cod_produto; }
-      else if (view === 'fornecedores') { table = 'fornecedores'; pkField = 'cod_fornecedor'; id = row.cod_fornecedor; }
-      else if (view === 'entradas') { table = 'entradas'; } else if (view === 'saidas') { table = 'saidas'; }
-      if (!table) return; if (!id && row.id) { pkField = 'id'; id = row.id; }
-      const { error } = await supabase.from(table).delete().eq(pkField, id);
-      if (error) { if (error.code === '23503') toast.error('Não é possível excluir: Este item está sendo usado em outros registros.'); else toast.error('Erro ao excluir: ' + error.message); }
-      else { toast.success('Registro excluído com sucesso.'); loadData(); }
+    const handleDeleteClick = (row: any) => {
+        setItemToDelete(row);
+        setDeleteModalOpen(true);
+    };
+
+    const handleEditClick = (row: any) => {
+        setEditingItem(row);
+        setShowModal(true);
     };
   
     const getFormConfig = () => {
       switch (view) {
-        case 'produtos': return { title: 'Novo Produto', fields: [ { name: 'descricao', label: 'Descrição', required: true }, { name: 'quantidade_atual', label: 'Quantidade Inicial', type: 'number', required: true } ] };
-        case 'fornecedores': return { title: 'Novo Fornecedor', fields: [ { name: 'nome', label: 'Nome da Empresa', required: true }, { name: 'cnpj', label: 'CNPJ', required: true }, { name: 'telefone', label: 'Telefone' }, { name: 'endereco', label: 'Endereço' } ] };
-        case 'entradas': return { title: 'Registrar Entrada de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: p.descricao })) }, { name: 'quantidade_entrada', label: 'Quantidade', type: 'number', required: true }, { name: 'fornecedor_id', label: 'Fornecedor', type: 'select', required: true, options: auxData.fornecedores?.map((f:any) => ({ value: f.cod_fornecedor, label: f.nome })) }, { name: 'local_estoque', label: 'Local de Estoque' } ] };
-        case 'saidas': return { title: 'Registrar Saída de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: `${p.descricao} (Estoque: ${p.quantidade_atual})` })) }, { name: 'quantidade', label: 'Quantidade', type: 'number', required: true }, { name: 'funcionario_id', label: 'Funcionário', type: 'select', required: true, options: auxData.funcionarios?.map((f:any) => ({ value: f.id, label: f.nome })) } ] };
+        case 'produtos': return { title: editingItem ? 'Editar Produto' : 'Novo Produto', fields: [ { name: 'descricao', label: 'Descrição', required: true }, { name: 'quantidade_atual', label: 'Quantidade Inicial', type: 'number', required: true } ] };
+        case 'fornecedores': return { title: editingItem ? 'Editar Fornecedor' : 'Novo Fornecedor', fields: [ { name: 'nome', label: 'Nome da Empresa', required: true }, { name: 'cnpj', label: 'CNPJ', required: true }, { name: 'telefone', label: 'Telefone' }, { name: 'endereco', label: 'Endereço' } ] };
+        case 'entradas': return { title: editingItem ? 'Editar Entrada' : 'Registrar Entrada de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: p.descricao })) }, { name: 'quantidade_entrada', label: 'Quantidade', type: 'number', required: true }, { name: 'fornecedor_id', label: 'Fornecedor', type: 'select', required: true, options: auxData.fornecedores?.map((f:any) => ({ value: f.cod_fornecedor, label: f.nome })) }, { name: 'local_estoque', label: 'Local de Estoque' } ] };
+        case 'saidas': return { title: editingItem ? 'Editar Saída' : 'Registrar Saída de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: `${p.descricao} (Estoque: ${p.quantidade_atual})` })) }, { name: 'quantidade', label: 'Quantidade', type: 'number', required: true }, { name: 'funcionario_id', label: 'Funcionário', type: 'select', required: true, options: auxData.funcionarios?.map((f:any) => ({ value: f.id, label: f.nome })) } ] };
         default: return null;
       }
     };
@@ -201,7 +264,12 @@ export const AlmoxarifadoModule = () => {
                     {headers.map(h => <td key={h}>{h.includes('data') || h === 'ultima_saida' ? new Date(row[h]).toLocaleDateString('pt-BR') : row[h]}</td>)}
                     {view === 'entradas' && <><td>{row.produtos?.descricao}</td><td>{row.fornecedores?.nome}</td></>}
                     {view === 'saidas' && <><td>{row.produtos?.descricao}</td><td>{row.funcionarios?.nome}</td></>}
-                    {canDelete && (<td className="text-right"><button onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-600 transition-colors p-1"><Trash2 className="w-4 h-4" /></button></td>)}
+                    {canDelete && (
+                        <td className="text-right whitespace-nowrap">
+                             <button onClick={() => handleEditClick(row)} className="text-blue-400 hover:text-blue-600 transition-colors p-1 mr-2" title="Editar"><Edit className="w-4 h-4" /></button>
+                             <button onClick={() => handleDeleteClick(row)} className="text-red-400 hover:text-red-600 transition-colors p-1" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                        </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -271,10 +339,11 @@ export const AlmoxarifadoModule = () => {
             </div>
           </aside>
           <main className="main-content">
-            <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view.replace('relatorio_', 'Relatório de ').replace('_', ' ')}</h1>{formConfig && (<button onClick={() => setShowModal(true)} className="btn-primary"><span>+ Novo Registro</span></button>)}</div>
+            <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view.replace('relatorio_', 'Relatório de ').replace('_', ' ')}</h1>{formConfig && (<button onClick={() => { setEditingItem(null); setShowModal(true); }} className="btn-primary"><span>+ Novo Registro</span></button>)}</div>
             {renderToolbar()}
             {renderTable()}
-            {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+            {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} initialValues={editingItem} />)}
+            {deleteModalOpen && (<ConfirmModal title="Confirmar Exclusão" message="Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita." onConfirm={confirmDelete} onCancel={() => setDeleteModalOpen(false)} isDestructive={true} />)}
           </main>
         </div>
       );

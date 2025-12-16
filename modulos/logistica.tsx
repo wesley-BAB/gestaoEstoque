@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Calendar, AlertCircle, Clock, CheckCircle, CheckSquare, XCircle, Filter, Users } from 'lucide-react';
+import { Truck, Calendar, AlertCircle, Clock, CheckCircle, CheckSquare, XCircle, Filter, Users, Edit } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { supabase } from '../supabase';
 import { SimpleForm, SearchableSelect } from '../ui';
@@ -14,6 +14,9 @@ export const LogisticaModule = () => {
     const [selectedDate, setSelectedDate] = useState(''); // Para filtro de data
     const currentUser = JSON.parse(localStorage.getItem('wes_erp_user') || '{}');
     const isTerceiro = currentUser.tipo === 'terceiro';
+
+    // Estados para edição
+    const [editingItem, setEditingItem] = useState<any>(null);
 
     useEffect(() => {
         setListData([]);
@@ -71,17 +74,37 @@ export const LogisticaModule = () => {
         const payload = {
             ...data,
             fornecedor_id: isTerceiro ? currentUser.fornecedor_id : data.fornecedor_id,
-            status: 'Pendente' 
         };
+        
+        // Se for novo, define status padrão
+        if (!editingItem) {
+            payload.status = 'Pendente';
+        }
 
-        const { error } = await supabase.from('solicitacoes_logistica').insert(payload);
-        if (error) {
-            toast.error('Erro ao criar solicitação: ' + error.message);
+        let error;
+        if (editingItem) {
+            // Remove joins
+            const { produtos, fornecedores, ...cleanPayload } = payload;
+            const { error: err } = await supabase.from('solicitacoes_logistica').update(cleanPayload).eq('id', editingItem.id);
+            error = err;
         } else {
-            toast.success('Solicitação criada com sucesso!');
+            const { error: err } = await supabase.from('solicitacoes_logistica').insert(payload);
+            error = err;
+        }
+
+        if (error) {
+            toast.error('Erro ao salvar solicitação: ' + error.message);
+        } else {
+            toast.success('Solicitação salva com sucesso!');
             setShowModal(false);
+            setEditingItem(null);
             if (view === 'solicitacoes') loadData();
         }
+    };
+
+    const handleEditClick = (row: any) => {
+        setEditingItem(row);
+        setShowModal(true);
     };
 
     const handleStatusChange = async (id: number, newStatus: string) => {
@@ -130,10 +153,10 @@ export const LogisticaModule = () => {
         ];
 
         if (isTerceiro) {
-            return { title: 'Nova Solicitação', fields: commonFields };
+            return { title: editingItem ? 'Editar Solicitação' : 'Nova Solicitação', fields: commonFields };
         } else {
             return {
-                title: 'Registrar Solicitação para Fornecedor',
+                title: editingItem ? 'Editar Solicitação' : 'Registrar Solicitação para Fornecedor',
                 fields: [
                     { 
                         name: 'fornecedor_id', 
@@ -239,9 +262,10 @@ export const LogisticaModule = () => {
                                 <td><StatusBadge status={row.status} /></td>
                                 
                                 {!isTerceiro && (
-                                    <td className="text-right">
+                                    <td className="text-right whitespace-nowrap">
                                         {row.status === 'Pendente' && (
                                             <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleEditClick(row)} className="p-1 text-blue-400 hover:text-blue-600 rounded mr-2" title="Editar"><Edit className="w-5 h-5" /></button>
                                                 <button onClick={() => handleStatusChange(row.id, 'Aprovado')} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Aprovar"><CheckCircle className="w-5 h-5" /></button>
                                                 <button onClick={() => handleStatusChange(row.id, 'Recusado')} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Recusar"><XCircle className="w-5 h-5" /></button>
                                             </div>
@@ -294,13 +318,13 @@ export const LogisticaModule = () => {
                             ? (isTerceiro ? 'Minhas Solicitações' : 'Central de Solicitações') 
                             : view.replace('relatorio_', 'Relatório por ').replace('_', ' ')}
                     </h1>
-                    <button onClick={() => setShowModal(true)} className="btn-primary">
+                    <button onClick={() => { setEditingItem(null); setShowModal(true); }} className="btn-primary">
                         <Truck className="w-4 h-4" /> Nova Solicitação
                     </button>
                 </div>
                 {renderToolbar()}
                 {renderTable()}
-                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} initialValues={editingItem} />)}
             </main>
         </div>
     );
