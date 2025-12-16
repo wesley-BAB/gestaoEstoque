@@ -29,7 +29,14 @@ import {
   KeyRound,
   User,
   ArrowRight,
-  PenLine
+  PenLine,
+  Map,
+  Navigation,
+  Calendar,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 
 // --- Configuração Supabase ---
@@ -68,10 +75,11 @@ const maskPhone = (value: string) => {
 };
 
 // --- Tipos ---
-type ModuleType = 'home' | 'almoxarifado' | 'rh' | 'administracao' | 'financeiro';
+type ModuleType = 'home' | 'almoxarifado' | 'rh' | 'administracao' | 'logistica';
 type AlmoxarifadoView = 'dashboard' | 'produtos' | 'entradas' | 'saidas' | 'fornecedores' | 'relatorio_funcionario' | 'relatorio_material';
 type RHView = 'dashboard' | 'funcionarios' | 'setores';
 type AdminView = 'dashboard' | 'usuarios';
+type LogisticaView = 'dashboard' | 'solicitacoes';
 
 // --- Componentes de UI ---
 
@@ -214,7 +222,6 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
         } else if (data.senha === pass.trim()) {
             // Senha correta (Legado / Texto Plano)
             toast.success(`Bem-vindo, ${data.usuario}!`);
-            // Opcional: Atualizar para hash automaticamente? Por segurança, vamos deixar o usuário mudar.
             toast.info("Recomendamos alterar sua senha para maior segurança.");
             localStorage.setItem('wes_erp_user', JSON.stringify(data));
             onLogin(data);
@@ -293,6 +300,7 @@ const Login = ({ onLogin }: { onLogin: (user: any) => void }) => {
 
 // --- Modal de Alterar Senha ---
 const ChangePasswordModal = ({ user, onClose, onUpdateUser }: any) => {
+    // ... (Mantido igual)
     const [currentPass, setCurrentPass] = useState('');
     const [newPass, setNewPass] = useState('');
     const [confirmPass, setConfirmPass] = useState('');
@@ -456,19 +464,20 @@ const HomeView = ({ currentUser, onSelectModule, hasAccess }: any) => {
                     </div>
                 )}
                  
-                 {/* Card Financeiro (Desabilitado visualmente mas renderizado se tiver acesso) */}
-                 {hasAccess('financeiro') && (
+                 {/* Card Logística (Novo) */}
+                 {hasAccess('logistica') && (
                     <div 
-                        className="bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-100 cursor-not-allowed opacity-70"
+                        onClick={() => onSelectModule('logistica')}
+                        className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group"
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-gray-200 rounded-lg">
-                                <PieChart className="w-8 h-8 text-gray-500" />
+                            <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                                <Truck className="w-8 h-8 text-orange-600" />
                             </div>
-                            <Lock className="w-5 h-5 text-gray-400" />
+                            <Navigation className="w-5 h-5 text-gray-300 group-hover:text-orange-500 transition-colors" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-600">Financeiro</h3>
-                        <p className="text-gray-500 text-sm mt-2">Módulo em desenvolvimento. Consulte o administrador.</p>
+                        <h3 className="text-xl font-bold text-gray-800">Logística</h3>
+                        <p className="text-gray-500 text-sm mt-2">Gestão de frota, entregas e monitoramento de terceiros.</p>
                     </div>
                 )}
 
@@ -485,7 +494,7 @@ const HomeView = ({ currentUser, onSelectModule, hasAccess }: any) => {
                             <Settings className="w-5 h-5 text-gray-300 group-hover:text-gray-600 transition-colors" />
                         </div>
                         <h3 className="text-xl font-bold text-gray-800">Administração</h3>
-                        <p className="text-gray-500 text-sm mt-2">Gestão de usuários, permissões e configurações do sistema.</p>
+                        <p className="text-gray-500 text-sm mt-2">Gestão de usuários (internos e terceiros) e permissões.</p>
                     </div>
                 )}
             </div>
@@ -493,8 +502,9 @@ const HomeView = ({ currentUser, onSelectModule, hasAccess }: any) => {
     );
 };
 
-// ... (DashboardAlmoxarifado, DashboardRH, DashboardAdmin mantidos iguais) ...
+// ... (DashboardAlmoxarifado, DashboardRH mantidos iguais) ...
 const DashboardAlmoxarifado = () => {
+    // ... (mesmo código de antes)
   const [stats, setStats] = useState({ totalProdutos: 0, totalEstoque: 0, saidasRecentes: [] as any[] });
   const [loading, setLoading] = useState(true);
 
@@ -504,12 +514,10 @@ const DashboardAlmoxarifado = () => {
 
   const fetchStats = async () => {
     setLoading(true);
-    // Fetch Produtos Stats
     const { data: produtos } = await supabase.from('produtos').select('quantidade_atual');
     const totalProd = produtos?.length || 0;
     const totalEst = produtos?.reduce((acc, curr) => acc + (curr.quantidade_atual || 0), 0) || 0;
 
-    // Fetch Saidas Recentes
     const { data: saidas } = await supabase
       .from('saidas')
       .select(`
@@ -535,28 +543,11 @@ const DashboardAlmoxarifado = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-800">Visão Geral do Almoxarifado</h2>
-      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card 
-          title="Produtos Cadastrados" 
-          value={stats.totalProdutos} 
-          icon={Package} 
-          colorClass="bg-blue-500" 
-        />
-        <Card 
-          title="Itens em Estoque" 
-          value={stats.totalEstoque} 
-          icon={Box} 
-          colorClass="bg-emerald-500" 
-        />
-        <Card 
-          title="Saídas Recentes" 
-          value={stats.saidasRecentes.length} 
-          icon={ArrowRightLeft} 
-          colorClass="bg-amber-500" 
-        />
+        <Card title="Produtos Cadastrados" value={stats.totalProdutos} icon={Package} colorClass="bg-blue-500" />
+        <Card title="Itens em Estoque" value={stats.totalEstoque} icon={Box} colorClass="bg-emerald-500" />
+        <Card title="Saídas Recentes" value={stats.saidasRecentes.length} icon={ArrowRightLeft} colorClass="bg-amber-500" />
       </div>
-
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-5 border-b border-gray-100 bg-gray-50">
           <h3 className="font-semibold text-gray-800">Últimas Saídas para Funcionários</h3>
@@ -580,11 +571,6 @@ const DashboardAlmoxarifado = () => {
                   <td className="p-4">{new Date(saida.data_saida).toLocaleString('pt-BR')}</td>
                 </tr>
               ))}
-              {stats.saidasRecentes.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-400">Nenhuma saída registrada recentemente.</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -594,68 +580,28 @@ const DashboardAlmoxarifado = () => {
 };
 
 const DashboardRH = () => {
+    // ... (mesmo código de antes)
     const [stats, setStats] = useState({ totalFuncionarios: 0, totalSetores: 0 });
-  
     useEffect(() => {
       const fetch = async () => {
         const { count: countFunc } = await supabase.from('funcionarios').select('*', { count: 'exact', head: true });
         const { count: countSetores } = await supabase.from('setores').select('*', { count: 'exact', head: true });
-        setStats({
-            totalFuncionarios: countFunc || 0,
-            totalSetores: countSetores || 0
-        });
+        setStats({ totalFuncionarios: countFunc || 0, totalSetores: countSetores || 0 });
       };
       fetch();
     }, []);
-  
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-800">Visão Geral de RH</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card 
-            title="Funcionários Ativos" 
-            value={stats.totalFuncionarios} 
-            icon={Users} 
-            colorClass="bg-purple-500" 
-          />
-          <Card 
-            title="Setores Cadastrados" 
-            value={stats.totalSetores} 
-            icon={Briefcase} 
-            colorClass="bg-orange-500" 
-          />
+          <Card title="Funcionários Ativos" value={stats.totalFuncionarios} icon={Users} colorClass="bg-purple-500" />
+          <Card title="Setores Cadastrados" value={stats.totalSetores} icon={Briefcase} colorClass="bg-orange-500" />
         </div>
       </div>
     );
-  };
+};
 
-const DashboardAdmin = () => {
-    const [stats, setStats] = useState({ totalUsuarios: 0 });
-  
-    useEffect(() => {
-      const fetch = async () => {
-        const { count } = await supabase.from('usuarios').select('*', { count: 'exact', head: true });
-        setStats({ totalUsuarios: count || 0 });
-      };
-      fetch();
-    }, []);
-  
-    return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">Visão Geral Administrativa</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card 
-            title="Usuários do Sistema" 
-            value={stats.totalUsuarios} 
-            icon={Shield} 
-            colorClass="bg-gray-800" 
-          />
-        </div>
-      </div>
-    );
-  };
-
-// --- Componente de Formulário Genérico com Máscaras ---
+// --- Componente de Formulário Genérico com Máscaras e Lógica Condicional ---
 
 const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
   const [formData, setFormData] = useState<any>({});
@@ -667,25 +613,27 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
 
   const handleChange = (field: string, value: any) => {
     let finalValue = value;
-    
-    // Aplicação de Máscaras
-    if (field === 'cnpj') {
-        finalValue = maskCNPJ(value);
-    } else if (field === 'telefone') {
-        finalValue = maskPhone(value);
-    }
+    if (field === 'cnpj') finalValue = maskCNPJ(value);
+    else if (field === 'telefone') finalValue = maskPhone(value);
 
-    setFormData((prev: any) => ({ ...prev, [field]: finalValue }));
+    // Limpar campos dependentes se o valor mudar
+    setFormData((prev: any) => {
+        const newState = { ...prev, [field]: finalValue };
+        
+        // Exemplo: Se mudar o tipo, limpa as associações para evitar inconsistência
+        if (field === 'tipo') {
+            newState['funcionario_id'] = null;
+            newState['fornecedor_id'] = null;
+        }
+        return newState;
+    });
   };
 
   const handleCheckboxGroupChange = (field: string, optionValue: string, checked: boolean) => {
     setFormData((prev: any) => {
         const currentValues = prev[field] || [];
-        if (checked) {
-            return { ...prev, [field]: [...currentValues, optionValue] };
-        } else {
-            return { ...prev, [field]: currentValues.filter((v: string) => v !== optionValue) };
-        }
+        if (checked) return { ...prev, [field]: [...currentValues, optionValue] };
+        else return { ...prev, [field]: currentValues.filter((v: string) => v !== optionValue) };
     });
   };
 
@@ -697,44 +645,54 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
           <button onClick={onClose} className="text-white hover:text-emerald-200">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {fields.map((field: any) => (
-            <div key={field.name}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-              
-              {field.type === 'select' ? (
-                <SearchableSelect 
-                    options={field.options}
-                    value={formData[field.name]}
-                    onChange={(val: any) => handleChange(field.name, val)}
-                    placeholder="Digite para buscar..."
+          {fields.map((field: any) => {
+            // Lógica Condicional: Se o campo tiver 'showIf', verifica se a condição é atendida
+            if (field.showIf) {
+                const dependentValue = formData[field.showIf.field];
+                if (dependentValue !== field.showIf.value) {
+                    return null;
+                }
+            }
+
+            return (
+                <div key={field.name}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                
+                {field.type === 'select' ? (
+                    <SearchableSelect 
+                        options={field.options}
+                        value={formData[field.name]}
+                        onChange={(val: any) => handleChange(field.name, val)}
+                        placeholder="Digite para buscar..."
+                        required={field.required}
+                    />
+                ) : field.type === 'checkbox-group' ? (
+                    <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
+                        {field.options?.map((opt: any) => (
+                            <label key={opt.value} className="flex items-center space-x-2 cursor-pointer">
+                                <input 
+                                    type="checkbox"
+                                    value={opt.value}
+                                    onChange={(e) => handleCheckboxGroupChange(field.name, opt.value, e.target.checked)}
+                                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                                />
+                                <span className="text-sm text-gray-700">{opt.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                ) : (
+                    <input
+                    type={field.type || 'text'}
                     required={field.required}
-                />
-              ) : field.type === 'checkbox-group' ? (
-                 <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
-                    {field.options?.map((opt: any) => (
-                        <label key={opt.value} className="flex items-center space-x-2 cursor-pointer">
-                            <input 
-                                type="checkbox"
-                                value={opt.value}
-                                onChange={(e) => handleCheckboxGroupChange(field.name, opt.value, e.target.checked)}
-                                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                            />
-                            <span className="text-sm text-gray-700">{opt.label}</span>
-                        </label>
-                    ))}
-                 </div>
-              ) : (
-                <input
-                  type={field.type || 'text'}
-                  required={field.required}
-                  value={formData[field.name] || ''}
-                  className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  onChange={(e) => handleChange(field.name, e.target.value)}
-                  maxLength={field.name === 'cnpj' ? 18 : field.name === 'telefone' ? 15 : undefined}
-                />
-              )}
-            </div>
-          ))}
+                    value={formData[field.name] || ''}
+                    className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    onChange={(e) => handleChange(field.name, e.target.value)}
+                    maxLength={field.name === 'cnpj' ? 18 : field.name === 'telefone' ? 15 : undefined}
+                    />
+                )}
+                </div>
+            );
+          })}
           <div className="flex justify-end gap-3 mt-6">
             <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
             <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">Salvar</button>
@@ -747,310 +705,201 @@ const SimpleForm = ({ title, fields, onSubmit, onClose }: any) => {
 
 // ... (AlmoxarifadoModule, RHModule mantidos iguais) ...
 const AlmoxarifadoModule = () => {
-  const [view, setView] = useState<AlmoxarifadoView>('dashboard');
-  const [showModal, setShowModal] = useState(false);
-  const [listData, setListData] = useState<any[]>([]);
-  const [auxData, setAuxData] = useState<any>({}); 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReportId, setSelectedReportId] = useState('');
-
-  useEffect(() => {
-    setSearchTerm(''); 
-    setSelectedReportId(''); 
-    setListData([]); 
-    loadData();
-  }, [view]);
-
-  const loadData = async () => {
-    let data: any[] = [];
-    if (view === 'produtos') {
-      const res = await supabase.from('produtos').select('*').order('descricao');
-      if (res.data) data = res.data;
-    } else if (view === 'fornecedores') {
-      const res = await supabase.from('fornecedores').select('*').order('nome');
-      if (res.data) data = res.data;
-    } else if (view === 'entradas') {
-      const res = await supabase.from('entradas').select('*, produtos(descricao), fornecedores(nome)').order('data_entrada', { ascending: false });
-      if (res.data) data = res.data;
-      const prod = await supabase.from('produtos').select('*');
-      const forn = await supabase.from('fornecedores').select('*');
-      setAuxData({ produtos: prod.data, fornecedores: forn.data });
-    } else if (view === 'saidas') {
-      const res = await supabase.from('saidas').select('*, produtos(descricao), funcionarios(nome)').order('data_saida', { ascending: false });
-      if (res.data) data = res.data;
-      const prod = await supabase.from('produtos').select('*');
-      const func = await supabase.from('funcionarios').select('*');
-      setAuxData({ produtos: prod.data, funcionarios: func.data });
-    } else if (view === 'relatorio_funcionario') {
-      const res = await supabase.from('funcionarios').select('*').order('nome');
-      if (res.data) setAuxData({ funcionarios: res.data });
-      data = []; 
-    } else if (view === 'relatorio_material') {
-      const res = await supabase.from('produtos').select('*').order('descricao');
-      if (res.data) setAuxData({ produtos: res.data });
-      data = []; 
-    }
-    setListData(data);
-  };
-
-  const handleRunReport = async () => {
-    if (!selectedReportId) {
-      toast.warn('Selecione um item para gerar o relatório.');
-      return;
-    }
-    let data: any[] = [];
-    if (view === 'relatorio_funcionario') {
-        const res = await supabase
-            .from('saidas')
-            .select('*, produtos(descricao), funcionarios(nome)')
-            .eq('funcionario_id', selectedReportId)
-            .order('data_saida', { ascending: false });
-        if (res.data) {
-            data = res.data.map(item => ({
-                data_saida: item.data_saida,
-                produto: item.produtos?.descricao,
-                quantidade: item.quantidade
-            }));
-        }
-    } else if (view === 'relatorio_material') {
-        const res = await supabase
-            .from('saidas')
-            .select('*, funcionarios(nome), produtos(descricao)')
-            .eq('produto_id', selectedReportId)
-            .order('data_saida', { ascending: false });
-         if (res.data) {
-             data = res.data.map(item => ({
-                data_saida: item.data_saida,
-                funcionario: item.funcionarios?.nome,
-                quantidade: item.quantidade
-             }));
-         }
-    }
-    setListData(data);
-    if (data.length === 0) toast.info('Nenhum registro encontrado para a seleção.');
-  };
-
-  const handleSave = async (data: any) => {
-    let table = '';
-    let payload = { ...data };
-
-    switch(view) {
-      case 'produtos': table = 'produtos'; break;
-      case 'fornecedores': table = 'fornecedores'; break;
-      case 'entradas': table = 'entradas'; break;
-      case 'saidas': table = 'saidas'; break;
-    }
-
-    if (!table) return;
-
-    if (view === 'saidas') {
-      try {
-        const { data: produtoData, error: prodError } = await supabase
-          .from('produtos')
-          .select('quantidade_atual, descricao')
-          .eq('cod_produto', payload.produto_id)
-          .single();
-
-        if (prodError || !produtoData) {
-          toast.error('Produto não encontrado!');
-          return;
-        }
-
-        const qtdEstoque = Number(produtoData.quantidade_atual);
-        const qtdSaida = Number(payload.quantidade);
-
-        if (qtdEstoque < qtdSaida) {
-          toast.error(`Estoque insuficiente! Disponível: ${qtdEstoque} | Solicitado: ${qtdSaida}`);
-          return; 
-        }
-      } catch (err) {
-        toast.error('Erro ao verificar estoque.');
-        return;
+    // ... (Mantendo a lógica existente, resumida para caber)
+    const [view, setView] = useState<AlmoxarifadoView>('dashboard');
+    const [showModal, setShowModal] = useState(false);
+    const [listData, setListData] = useState<any[]>([]);
+    const [auxData, setAuxData] = useState<any>({}); 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedReportId, setSelectedReportId] = useState('');
+  
+    useEffect(() => { setSearchTerm(''); setSelectedReportId(''); setListData([]); loadData(); }, [view]);
+  
+    const loadData = async () => {
+      let data: any[] = [];
+      if (view === 'produtos') {
+        const res = await supabase.from('produtos').select('*').order('descricao');
+        if (res.data) data = res.data;
+      } else if (view === 'fornecedores') {
+        const res = await supabase.from('fornecedores').select('*').order('nome');
+        if (res.data) data = res.data;
+      } else if (view === 'entradas') {
+        const res = await supabase.from('entradas').select('*, produtos(descricao), fornecedores(nome)').order('data_entrada', { ascending: false });
+        if (res.data) data = res.data;
+        const prod = await supabase.from('produtos').select('*');
+        const forn = await supabase.from('fornecedores').select('*');
+        setAuxData({ produtos: prod.data, fornecedores: forn.data });
+      } else if (view === 'saidas') {
+        const res = await supabase.from('saidas').select('*, produtos(descricao), funcionarios(nome)').order('data_saida', { ascending: false });
+        if (res.data) data = res.data;
+        const prod = await supabase.from('produtos').select('*');
+        const func = await supabase.from('funcionarios').select('*');
+        setAuxData({ produtos: prod.data, funcionarios: func.data });
+      } else if (view === 'relatorio_funcionario') {
+        const res = await supabase.from('funcionarios').select('*').order('nome');
+        if (res.data) setAuxData({ funcionarios: res.data });
+      } else if (view === 'relatorio_material') {
+        const res = await supabase.from('produtos').select('*').order('descricao');
+        if (res.data) setAuxData({ produtos: res.data });
       }
-    }
+      setListData(data);
+    };
 
-    const { error } = await supabase.from(table).insert(payload);
+    const handleRunReport = async () => {
+        if (!selectedReportId) { toast.warn('Selecione um item para gerar o relatório.'); return; }
+        let data: any[] = [];
+        if (view === 'relatorio_funcionario') {
+            const res = await supabase.from('saidas').select('*, produtos(descricao), funcionarios(nome)').eq('funcionario_id', selectedReportId).order('data_saida', { ascending: false });
+            if (res.data) data = res.data.map(item => ({ data_saida: item.data_saida, produto: item.produtos?.descricao, quantidade: item.quantidade }));
+        } else if (view === 'relatorio_material') {
+            const res = await supabase.from('saidas').select('*, funcionarios(nome), produtos(descricao)').eq('produto_id', selectedReportId).order('data_saida', { ascending: false });
+             if (res.data) data = res.data.map(item => ({ data_saida: item.data_saida, funcionario: item.funcionarios?.nome, quantidade: item.quantidade }));
+        }
+        setListData(data);
+        if (data.length === 0) toast.info('Nenhum registro encontrado para a seleção.');
+    };
+  
+    const handleSave = async (data: any) => {
+      let table = ''; let payload = { ...data };
+      switch(view) { case 'produtos': table = 'produtos'; break; case 'fornecedores': table = 'fornecedores'; break; case 'entradas': table = 'entradas'; break; case 'saidas': table = 'saidas'; break; }
+      if (!table) return;
+      if (view === 'saidas') {
+        try {
+          const { data: produtoData, error: prodError } = await supabase.from('produtos').select('quantidade_atual, descricao').eq('cod_produto', payload.produto_id).single();
+          if (prodError || !produtoData) { toast.error('Produto não encontrado!'); return; }
+          if (Number(produtoData.quantidade_atual) < Number(payload.quantidade)) { toast.error(`Estoque insuficiente! Disponível: ${produtoData.quantidade_atual} | Solicitado: ${payload.quantidade}`); return; }
+        } catch (err) { toast.error('Erro ao verificar estoque.'); return; }
+      }
+      const { error } = await supabase.from(table).insert(payload);
+      if (error) toast.error('Erro ao salvar: ' + error.message); else { toast.success('Registro salvo com sucesso!'); setShowModal(false); loadData(); }
+    };
+  
+    const handleDelete = async (row: any) => {
+      if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
+      let table = ''; let pkField = 'id'; let id = row.id;
+      if (view === 'produtos') { table = 'produtos'; pkField = 'cod_produto'; id = row.cod_produto; }
+      else if (view === 'fornecedores') { table = 'fornecedores'; pkField = 'cod_fornecedor'; id = row.cod_fornecedor; }
+      else if (view === 'entradas') { table = 'entradas'; } else if (view === 'saidas') { table = 'saidas'; }
+      if (!table) return; if (!id && row.id) { pkField = 'id'; id = row.id; }
+      const { error } = await supabase.from(table).delete().eq(pkField, id);
+      if (error) { if (error.code === '23503') toast.error('Não é possível excluir: Este item está sendo usado em outros registros.'); else toast.error('Erro ao excluir: ' + error.message); }
+      else { toast.success('Registro excluído com sucesso.'); loadData(); }
+    };
+  
+    const getFormConfig = () => {
+      switch (view) {
+        case 'produtos': return { title: 'Novo Produto', fields: [ { name: 'descricao', label: 'Descrição', required: true }, { name: 'quantidade_atual', label: 'Quantidade Inicial', type: 'number', required: true } ] };
+        case 'fornecedores': return { title: 'Novo Fornecedor', fields: [ { name: 'nome', label: 'Nome da Empresa', required: true }, { name: 'cnpj', label: 'CNPJ', required: true }, { name: 'telefone', label: 'Telefone' }, { name: 'endereco', label: 'Endereço' } ] };
+        case 'entradas': return { title: 'Registrar Entrada de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: p.descricao })) }, { name: 'quantidade_entrada', label: 'Quantidade', type: 'number', required: true }, { name: 'fornecedor_id', label: 'Fornecedor', type: 'select', required: true, options: auxData.fornecedores?.map((f:any) => ({ value: f.cod_fornecedor, label: f.nome })) }, { name: 'local_estoque', label: 'Local de Estoque' } ] };
+        case 'saidas': return { title: 'Registrar Saída de Material', fields: [ { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: `${p.descricao} (Estoque: ${p.quantidade_atual})` })) }, { name: 'quantidade', label: 'Quantidade', type: 'number', required: true }, { name: 'funcionario_id', label: 'Funcionário', type: 'select', required: true, options: auxData.funcionarios?.map((f:any) => ({ value: f.id, label: f.nome })) } ] };
+        default: return null;
+      }
+    };
+    const formConfig = getFormConfig();
+  
+    // ... (renderTable, renderToolbar e return mantidos da versão anterior)
+    const renderTable = () => {
+        if (view === 'dashboard') return <DashboardAlmoxarifado />;
+        let filteredData = listData;
+        if (searchTerm && ['produtos', 'fornecedores'].includes(view)) {
+          const lowerTerm = searchTerm.toLowerCase();
+          filteredData = listData.filter(item => {
+            if (view === 'produtos') return item.descricao?.toLowerCase().includes(lowerTerm);
+            if (view === 'fornecedores') return item.nome?.toLowerCase().includes(lowerTerm) || item.cnpj?.includes(lowerTerm);
+            return false;
+          });
+        }
+        if ((view === 'relatorio_funcionario' || view === 'relatorio_material') && listData.length === 0) {
+            return <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg border border-gray-200 text-gray-400"><Filter className="w-12 h-12 mb-2 opacity-50" /><p>Selecione um item acima e clique em "Visualizar" para gerar o relatório.</p></div>;
+        }
+        if (filteredData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
+        let headers: string[] = [];
+        if (view === 'relatorio_funcionario') headers = ['data_saida', 'produto', 'quantidade'];
+        else if (view === 'relatorio_material') headers = ['data_saida', 'funcionario', 'quantidade'];
+        else headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
+        const canDelete = ['produtos', 'fornecedores', 'entradas', 'saidas'].includes(view);
+        return (
+          <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+            <table className="w-full text-left text-sm text-gray-600">
+              <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
+                <tr>
+                  {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
+                  {view === 'entradas' && <><th className="p-4">Produto</th><th className="p-4">Fornecedor</th></>}
+                  {view === 'saidas' && <><th className="p-4">Produto</th><th className="p-4">Funcionário</th></>}
+                  {canDelete && <th className="p-4 text-right">Ações</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredData.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    {headers.map(h => <td key={h} className="p-4">{h.includes('data') || h === 'ultima_saida' ? new Date(row[h]).toLocaleDateString('pt-BR') : row[h]}</td>)}
+                    {view === 'entradas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.fornecedores?.nome}</td></>}
+                    {view === 'saidas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.funcionarios?.nome}</td></>}
+                    {canDelete && (<td className="p-4 text-right"><button onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-600 transition-colors p-1"><Trash2 className="w-4 h-4" /></button></td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      };
     
-    if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
-    } else {
-      toast.success('Registro salvo com sucesso!');
-      setShowModal(false);
-      loadData();
-    }
-  };
-
-  const handleDelete = async (row: any) => {
-    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
-    let table = '';
-    let pkField = 'id';
-    let id = row.id;
-    if (view === 'produtos') { table = 'produtos'; pkField = 'cod_produto'; id = row.cod_produto; }
-    else if (view === 'fornecedores') { table = 'fornecedores'; pkField = 'cod_fornecedor'; id = row.cod_fornecedor; }
-    else if (view === 'entradas') { table = 'entradas'; }
-    else if (view === 'saidas') { table = 'saidas'; }
-    if (!table) return;
-    if (!id && row.id) { pkField = 'id'; id = row.id; }
-    const { error } = await supabase.from(table).delete().eq(pkField, id);
-    if (error) {
-        if (error.code === '23503') toast.error('Não é possível excluir: Este item está sendo usado em outros registros.');
-        else toast.error('Erro ao excluir: ' + error.message);
-    } else {
-        toast.success('Registro excluído com sucesso.');
-        loadData();
-    }
-  };
-
-  const getFormConfig = () => {
-    switch (view) {
-      case 'produtos':
-        return {
-          title: 'Novo Produto',
-          fields: [
-            { name: 'descricao', label: 'Descrição', required: true },
-            { name: 'quantidade_atual', label: 'Quantidade Inicial', type: 'number', required: true }
-          ]
-        };
-      case 'fornecedores':
-        return {
-          title: 'Novo Fornecedor',
-          fields: [
-            { name: 'nome', label: 'Nome da Empresa', required: true },
-            { name: 'cnpj', label: 'CNPJ', required: true },
-            { name: 'telefone', label: 'Telefone' },
-            { name: 'endereco', label: 'Endereço' }
-          ]
-        };
-      case 'entradas':
-        return {
-          title: 'Registrar Entrada de Material',
-          fields: [
-            { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: p.descricao })) },
-            { name: 'quantidade_entrada', label: 'Quantidade', type: 'number', required: true },
-            { name: 'fornecedor_id', label: 'Fornecedor', type: 'select', required: true, options: auxData.fornecedores?.map((f:any) => ({ value: f.cod_fornecedor, label: f.nome })) },
-            { name: 'local_estoque', label: 'Local de Estoque' }
-          ]
-        };
-      case 'saidas':
-        return {
-          title: 'Registrar Saída de Material',
-          fields: [
-            { name: 'produto_id', label: 'Produto', type: 'select', required: true, options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: `${p.descricao} (Estoque: ${p.quantidade_atual})` })) },
-            { name: 'quantidade', label: 'Quantidade', type: 'number', required: true },
-            { name: 'funcionario_id', label: 'Funcionário', type: 'select', required: true, options: auxData.funcionarios?.map((f:any) => ({ value: f.id, label: f.nome })) }
-          ]
-        };
-      default: return null;
-    }
-  };
-
-  const formConfig = getFormConfig();
-
-  const renderTable = () => {
-    if (view === 'dashboard') return <DashboardAlmoxarifado />;
-    let filteredData = listData;
-    if (searchTerm && ['produtos', 'fornecedores'].includes(view)) {
-      const lowerTerm = searchTerm.toLowerCase();
-      filteredData = listData.filter(item => {
-        if (view === 'produtos') return item.descricao?.toLowerCase().includes(lowerTerm);
-        if (view === 'fornecedores') return item.nome?.toLowerCase().includes(lowerTerm) || item.cnpj?.includes(lowerTerm);
-        return false;
-      });
-    }
-    if ((view === 'relatorio_funcionario' || view === 'relatorio_material') && listData.length === 0) {
-        return <div className="flex flex-col items-center justify-center h-64 bg-white rounded-lg border border-gray-200 text-gray-400"><Filter className="w-12 h-12 mb-2 opacity-50" /><p>Selecione um item acima e clique em "Visualizar" para gerar o relatório.</p></div>;
-    }
-    if (filteredData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
-    let headers: string[] = [];
-    if (view === 'relatorio_funcionario') headers = ['data_saida', 'produto', 'quantidade'];
-    else if (view === 'relatorio_material') headers = ['data_saida', 'funcionario', 'quantidade'];
-    else headers = Object.keys(filteredData[0]).filter(k => typeof filteredData[0][k] !== 'object' && k !== 'id' && k !== 'cod_produto' && k !== 'cod_setor' && k !== 'cod_fornecedor');
-    const canDelete = ['produtos', 'fornecedores', 'entradas', 'saidas'].includes(view);
-    return (
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-600">
-          <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
-            <tr>
-              {headers.map(h => <th key={h} className="p-4">{h.replace('_', ' ')}</th>)}
-              {view === 'entradas' && <><th className="p-4">Produto</th><th className="p-4">Fornecedor</th></>}
-              {view === 'saidas' && <><th className="p-4">Produto</th><th className="p-4">Funcionário</th></>}
-              {canDelete && <th className="p-4 text-right">Ações</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredData.map((row, idx) => (
-              <tr key={idx} className="hover:bg-gray-50">
-                {headers.map(h => <td key={h} className="p-4">{h.includes('data') || h === 'ultima_saida' ? new Date(row[h]).toLocaleDateString('pt-BR') : row[h]}</td>)}
-                {view === 'entradas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.fornecedores?.nome}</td></>}
-                {view === 'saidas' && <><td className="p-4">{row.produtos?.descricao}</td><td className="p-4">{row.funcionarios?.nome}</td></>}
-                {canDelete && (<td className="p-4 text-right"><button onClick={() => handleDelete(row)} className="text-red-400 hover:text-red-600 transition-colors p-1"><Trash2 className="w-4 h-4" /></button></td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  const renderToolbar = () => {
-    if (view === 'relatorio_funcionario') {
-        return (
-            <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
-                <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Funcionário</label>
-                    <SearchableSelect options={auxData.funcionarios?.map((f: any) => ({ value: f.id, label: `${f.nome} - ${f.matricula}` }))} value={selectedReportId} onChange={setSelectedReportId} placeholder="Digite para buscar funcionário..." />
+      const renderToolbar = () => {
+        if (view === 'relatorio_funcionario') {
+            return (
+                <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Funcionário</label>
+                        <SearchableSelect options={auxData.funcionarios?.map((f: any) => ({ value: f.id, label: `${f.nome} - ${f.matricula}` }))} value={selectedReportId} onChange={setSelectedReportId} placeholder="Digite para buscar funcionário..." />
+                    </div>
+                    <button onClick={handleRunReport} className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"><Filter className="w-4 h-4" /> Visualizar</button>
                 </div>
-                <button onClick={handleRunReport} className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"><Filter className="w-4 h-4" /> Visualizar</button>
-            </div>
-        );
-    }
-    if (view === 'relatorio_material') {
-        return (
-             <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
-                <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Produto</label>
-                    <SearchableSelect options={auxData.produtos?.map((p: any) => ({ value: p.cod_produto, label: p.descricao }))} value={selectedReportId} onChange={setSelectedReportId} placeholder="Digite para buscar produto..." />
+            );
+        }
+        if (view === 'relatorio_material') {
+            return (
+                 <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 items-end">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Selecione o Produto</label>
+                        <SearchableSelect options={auxData.produtos?.map((p: any) => ({ value: p.cod_produto, label: p.descricao }))} value={selectedReportId} onChange={setSelectedReportId} placeholder="Digite para buscar produto..." />
+                    </div>
+                    <button onClick={handleRunReport} className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"><Filter className="w-4 h-4" /> Visualizar</button>
                 </div>
-                <button onClick={handleRunReport} className="bg-emerald-600 text-white px-6 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2 font-medium"><Filter className="w-4 h-4" /> Visualizar</button>
-            </div>
-        );
-    }
-    if (['produtos', 'fornecedores'].includes(view)) {
-        return <div className="relative mb-6"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-400" /></div><input type="text" className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" placeholder={`Pesquisar em ${view}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>;
-    }
-    return null;
-  };
-
-  return (
-    <div className="flex h-[calc(100vh-64px)]">
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
-        <div className="p-4"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Principal</h2><nav className="space-y-1"><button onClick={() => setView('dashboard')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'dashboard' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><LayoutDashboard className="w-5 h-5 mr-3" /> Dashboard</button></nav></div>
-        <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Movimentações</h2><nav className="space-y-1"><button onClick={() => setView('entradas')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'entradas' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><ArrowDownCircle className="w-5 h-5 mr-3 text-green-600" /> Registrar Entrada</button><button onClick={() => setView('saidas')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'saidas' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><ArrowUpCircle className="w-5 h-5 mr-3 text-red-600" /> Registrar Saída</button></nav></div>
-        <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Relatórios</h2><nav className="space-y-1"><button onClick={() => setView('relatorio_funcionario')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_funcionario' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><UserCircle className="w-5 h-5 mr-3" /> Saída por Funcionário</button><button onClick={() => setView('relatorio_material')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_material' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><FileText className="w-5 h-5 mr-3" /> Saída por Material</button></nav></div>
-        <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Cadastros</h2><nav className="space-y-1"><button onClick={() => setView('produtos')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'produtos' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><Package className="w-5 h-5 mr-3" /> Produtos</button><button onClick={() => setView('fornecedores')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'fornecedores' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><Truck className="w-5 h-5 mr-3" /> Fornecedores</button></nav></div>
-      </aside>
-      <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
-        <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view.replace('relatorio_', 'Relatório de ').replace('_', ' ')}</h1>{formConfig && (<button onClick={() => setShowModal(true)} className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"><span>+ Novo Registro</span></button>)}</div>
-        {renderToolbar()}
-        {renderTable()}
-        {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
-      </main>
-    </div>
-  );
+            );
+        }
+        if (['produtos', 'fornecedores'].includes(view)) {
+            return <div className="relative mb-6"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-400" /></div><input type="text" className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" placeholder={`Pesquisar em ${view}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>;
+        }
+        return null;
+      };
+    
+      return (
+        <div className="flex h-[calc(100vh-64px)]">
+          <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+            <div className="p-4"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Principal</h2><nav className="space-y-1"><button onClick={() => setView('dashboard')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'dashboard' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><LayoutDashboard className="w-5 h-5 mr-3" /> Dashboard</button></nav></div>
+            <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Movimentações</h2><nav className="space-y-1"><button onClick={() => setView('entradas')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'entradas' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><ArrowDownCircle className="w-5 h-5 mr-3 text-green-600" /> Registrar Entrada</button><button onClick={() => setView('saidas')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'saidas' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><ArrowUpCircle className="w-5 h-5 mr-3 text-red-600" /> Registrar Saída</button></nav></div>
+            <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Relatórios</h2><nav className="space-y-1"><button onClick={() => setView('relatorio_funcionario')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_funcionario' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><UserCircle className="w-5 h-5 mr-3" /> Saída por Funcionário</button><button onClick={() => setView('relatorio_material')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'relatorio_material' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><FileText className="w-5 h-5 mr-3" /> Saída por Material</button></nav></div>
+            <div className="p-4 pt-0"><h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Cadastros</h2><nav className="space-y-1"><button onClick={() => setView('produtos')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'produtos' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><Package className="w-5 h-5 mr-3" /> Produtos</button><button onClick={() => setView('fornecedores')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'fornecedores' ? 'bg-emerald-50 text-emerald-600' : 'text-gray-700 hover:bg-gray-50'}`}><Truck className="w-5 h-5 mr-3" /> Fornecedores</button></nav></div>
+          </aside>
+          <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+            <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-gray-800 capitalize">{view.replace('relatorio_', 'Relatório de ').replace('_', ' ')}</h1>{formConfig && (<button onClick={() => setShowModal(true)} className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 flex items-center gap-2"><span>+ Novo Registro</span></button>)}</div>
+            {renderToolbar()}
+            {renderTable()}
+            {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+          </main>
+        </div>
+      );
 };
 
 const RHModule = () => {
+    // ... (Código do RH mantido, resumido)
     const [view, setView] = useState<RHView>('dashboard');
     const [showModal, setShowModal] = useState(false);
     const [listData, setListData] = useState<any[]>([]);
     const [auxData, setAuxData] = useState<any>({});
     const [searchTerm, setSearchTerm] = useState('');
   
-    useEffect(() => {
-        setSearchTerm('');
-        setListData([]);
-        loadData();
-    }, [view]);
+    useEffect(() => { setSearchTerm(''); setListData([]); loadData(); }, [view]);
   
     const loadData = async () => {
         let data: any[] = [];
@@ -1067,60 +916,26 @@ const RHModule = () => {
     };
 
     const handleSave = async (data: any) => {
-        let table = '';
-        if (view === 'funcionarios') table = 'funcionarios';
-        else if (view === 'setores') table = 'setores';
-
+        let table = ''; if (view === 'funcionarios') table = 'funcionarios'; else if (view === 'setores') table = 'setores';
         if (!table) return;
-
         const { error } = await supabase.from(table).insert(data);
-        if (error) {
-            toast.error('Erro ao salvar: ' + error.message);
-        } else {
-            toast.success('Registro salvo com sucesso!');
-            setShowModal(false);
-            loadData();
-        }
+        if (error) toast.error('Erro ao salvar: ' + error.message); else { toast.success('Registro salvo com sucesso!'); setShowModal(false); loadData(); }
     };
 
     const handleDelete = async (row: any) => {
         if (!window.confirm('Tem certeza que deseja excluir este registro?')) return;
-        let table = '';
-        let pkField = 'id';
-        let id = row.id;
+        let table = ''; let pkField = 'id'; let id = row.id;
         if (view === 'funcionarios') { table = 'funcionarios'; } 
         else if (view === 'setores') { table = 'setores'; pkField = 'cod_setor'; id = row.cod_setor; }
-        if (!table) return;
-        if (!id && row.id) { pkField = 'id'; id = row.id; }
+        if (!table) return; if (!id && row.id) { pkField = 'id'; id = row.id; }
         const { error } = await supabase.from(table).delete().eq(pkField, id);
-        if (error) {
-            if (error.code === '23503') toast.error('Não é possível excluir: Existem funcionários vinculados a este setor.');
-            else toast.error('Erro ao excluir: ' + error.message);
-        } else {
-            toast.success('Registro excluído com sucesso.');
-            loadData();
-        }
+        if (error) { if (error.code === '23503') toast.error('Não é possível excluir: Existem funcionários vinculados a este setor.'); else toast.error('Erro ao excluir: ' + error.message); } 
+        else { toast.success('Registro excluído com sucesso.'); loadData(); }
       };
 
     const getFormConfig = () => {
-        if (view === 'funcionarios') {
-            return {
-                title: 'Novo Funcionário',
-                fields: [
-                    { name: 'nome', label: 'Nome Completo', required: true },
-                    { name: 'matricula', label: 'Matrícula', required: true },
-                    { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) }
-                ]
-            };
-        }
-        if (view === 'setores') {
-            return {
-                title: 'Novo Setor',
-                fields: [
-                    { name: 'descricao', label: 'Descrição do Setor', required: true }
-                ]
-            };
-        }
+        if (view === 'funcionarios') return { title: 'Novo Funcionário', fields: [ { name: 'nome', label: 'Nome Completo', required: true }, { name: 'matricula', label: 'Matrícula', required: true }, { name: 'setor_id', label: 'Setor', type: 'select', required: true, options: auxData.setores?.map((s:any) => ({ value: s.cod_setor, label: s.descricao })) } ] };
+        if (view === 'setores') return { title: 'Novo Setor', fields: [ { name: 'descricao', label: 'Descrição do Setor', required: true } ] };
         return null;
     };
     const formConfig = getFormConfig();
@@ -1180,12 +995,266 @@ const RHModule = () => {
 };
 
 // ==========================================
+// MÓDULO LOGÍSTICA (ATUALIZADO)
+// ==========================================
+const LogisticaModule = () => {
+    const [view, setView] = useState<LogisticaView>('solicitacoes');
+    const [listData, setListData] = useState<any[]>([]);
+    const [auxData, setAuxData] = useState<any>({});
+    const [showModal, setShowModal] = useState(false);
+    const currentUser = JSON.parse(localStorage.getItem('wes_erp_user') || '{}');
+    const isTerceiro = currentUser.tipo === 'terceiro';
+
+    useEffect(() => {
+        setListData([]);
+        loadData();
+    }, [view]);
+
+    const loadData = async () => {
+        let data: any[] = [];
+        if (view === 'solicitacoes') {
+             // Carregar solicitações
+             let query = supabase.from('solicitacoes_logistica').select('*, produtos(descricao), fornecedores(nome)').order('created_at', { ascending: false });
+             
+             // Se for terceiro, filtra apenas as dele
+             if (isTerceiro && currentUser.fornecedor_id) {
+                 query = query.eq('fornecedor_id', currentUser.fornecedor_id);
+             }
+
+             const res = await query;
+             if (res.data) data = res.data;
+
+             // Carregar dados auxiliares para o formulário
+             const prodRes = await supabase.from('produtos').select('cod_produto, descricao');
+             setAuxData({ produtos: prodRes.data });
+        }
+        setListData(data);
+    };
+
+    const handleSave = async (data: any) => {
+        const payload = {
+            ...data,
+            fornecedor_id: isTerceiro ? currentUser.fornecedor_id : data.fornecedor_id, // Força o ID se for terceiro
+            status: 'Pendente' // Status inicial
+        };
+
+        const { error } = await supabase.from('solicitacoes_logistica').insert(payload);
+        if (error) {
+            toast.error('Erro ao criar solicitação: ' + error.message);
+        } else {
+            toast.success('Solicitação criada com sucesso!');
+            setShowModal(false);
+            loadData();
+        }
+    };
+
+    const handleStatusChange = async (id: number, newStatus: string) => {
+        const { error } = await supabase.from('solicitacoes_logistica').update({ status: newStatus }).eq('id', id);
+        if (error) {
+            toast.error('Erro ao atualizar status.');
+        } else {
+            toast.success(`Status alterado para ${newStatus}`);
+            loadData();
+        }
+    };
+
+    const getFormConfig = () => {
+        if (isTerceiro) {
+            return {
+                title: 'Nova Solicitação',
+                fields: [
+                    { 
+                        name: 'tipo', 
+                        label: 'Tipo de Solicitação', 
+                        type: 'select', 
+                        required: true,
+                        options: [
+                            { value: 'Coleta', label: 'Coleta (Retirar Material)' },
+                            { value: 'Entrega', label: 'Entrega (Entregar Material)' }
+                        ]
+                    },
+                    { 
+                        name: 'produto_id', 
+                        label: 'Material / Produto', 
+                        type: 'select', 
+                        required: true,
+                        options: auxData.produtos?.map((p:any) => ({ value: p.cod_produto, label: p.descricao }))
+                    },
+                    { name: 'quantidade', label: 'Quantidade', type: 'number', required: true },
+                    { name: 'data_desejada', label: 'Data Desejada', type: 'date', required: true },
+                    { 
+                        name: 'periodo', 
+                        label: 'Período Preferencial', 
+                        type: 'select', 
+                        required: true,
+                        options: [
+                            { value: 'Manhã', label: 'Manhã (08h - 12h)' },
+                            { value: 'Tarde', label: 'Tarde (13h - 18h)' },
+                            { value: 'Comercial', label: 'Horário Comercial' }
+                        ]
+                    },
+                    { name: 'observacoes', label: 'Observações (Opcional)' }
+                ]
+            };
+        }
+        return null; // Funcionários internos apenas gerenciam, não criam por aqui (regra de negócio assumida)
+    };
+    const formConfig = getFormConfig();
+
+    const StatusBadge = ({ status }: { status: string }) => {
+        let color = 'bg-gray-100 text-gray-600';
+        let icon = AlertCircle;
+        
+        switch (status) {
+            case 'Pendente': color = 'bg-yellow-100 text-yellow-700'; icon = Clock; break;
+            case 'Aprovado': color = 'bg-blue-100 text-blue-700'; icon = CheckCircle; break;
+            case 'Em Trânsito': color = 'bg-purple-100 text-purple-700'; icon = Truck; break;
+            case 'Concluído': color = 'bg-green-100 text-green-700'; icon = CheckSquare; break;
+            case 'Recusado': color = 'bg-red-100 text-red-700'; icon = XCircle; break;
+        }
+
+        const IconComp = icon;
+
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${color}`}>
+                <IconComp className="w-3.5 h-3.5" />
+                {status}
+            </span>
+        );
+    };
+
+    const renderTable = () => {
+        if (listData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhuma solicitação encontrada.</div>;
+
+        return (
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                    <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
+                        <tr>
+                            <th className="p-4">ID</th>
+                            <th className="p-4">Tipo</th>
+                            {!isTerceiro && <th className="p-4">Fornecedor</th>}
+                            <th className="p-4">Material</th>
+                            <th className="p-4">Qtd</th>
+                            <th className="p-4">Data / Período</th>
+                            <th className="p-4">Status</th>
+                            {!isTerceiro && <th className="p-4 text-right">Ações</th>}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {listData.map((row) => (
+                            <tr key={row.id} className="hover:bg-gray-50">
+                                <td className="p-4 font-mono text-xs">#{row.id}</td>
+                                <td className="p-4">
+                                    <span className={`font-medium ${row.tipo === 'Coleta' ? 'text-blue-600' : 'text-orange-600'}`}>
+                                        {row.tipo}
+                                    </span>
+                                </td>
+                                {!isTerceiro && <td className="p-4 font-medium text-gray-800">{row.fornecedores?.nome}</td>}
+                                <td className="p-4">{row.produtos?.descricao}</td>
+                                <td className="p-4 font-bold">{row.quantidade}</td>
+                                <td className="p-4">
+                                    <div className="flex flex-col">
+                                        <span className="flex items-center gap-1 text-gray-700"><Calendar className="w-3 h-3"/> {new Date(row.data_desejada).toLocaleDateString('pt-BR')}</span>
+                                        <span className="text-xs text-gray-500">{row.periodo}</span>
+                                    </div>
+                                </td>
+                                <td className="p-4"><StatusBadge status={row.status} /></td>
+                                
+                                {!isTerceiro && (
+                                    <td className="p-4 text-right">
+                                        {row.status === 'Pendente' && (
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleStatusChange(row.id, 'Aprovado')} className="p-1 text-green-600 hover:bg-green-50 rounded" title="Aprovar"><CheckCircle className="w-5 h-5" /></button>
+                                                <button onClick={() => handleStatusChange(row.id, 'Recusado')} className="p-1 text-red-600 hover:bg-red-50 rounded" title="Recusar"><XCircle className="w-5 h-5" /></button>
+                                            </div>
+                                        )}
+                                        {row.status === 'Aprovado' && (
+                                            <button onClick={() => handleStatusChange(row.id, 'Em Trânsito')} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">Iniciar Trânsito</button>
+                                        )}
+                                        {row.status === 'Em Trânsito' && (
+                                            <button onClick={() => handleStatusChange(row.id, 'Concluído')} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">Concluir</button>
+                                        )}
+                                    </td>
+                                )}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-[calc(100vh-64px)]">
+            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
+                <div className="p-4">
+                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Logística</h2>
+                    <nav className="space-y-1">
+                        <button onClick={() => setView('solicitacoes')} className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${view === 'solicitacoes' ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'}`}>
+                            <Truck className="w-5 h-5 mr-3" /> {isTerceiro ? 'Minhas Solicitações' : 'Gerenciar Coletas/Entregas'}
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+            <main className="flex-1 bg-gray-50 p-8 overflow-y-auto">
+                 <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-gray-800 capitalize">
+                        {isTerceiro ? 'Minhas Solicitações' : 'Central de Solicitações'}
+                    </h1>
+                    {isTerceiro && (
+                        <button onClick={() => setShowModal(true)} className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 flex items-center gap-2 shadow-sm">
+                            <Truck className="w-4 h-4" /> Nova Solicitação
+                        </button>
+                    )}
+                </div>
+                {renderTable()}
+                {showModal && formConfig && (<SimpleForm title={formConfig.title} fields={formConfig.fields} onSubmit={handleSave} onClose={() => setShowModal(false)} />)}
+            </main>
+        </div>
+    );
+};
+
+// ==========================================
+// COMPONENTE DASHBOARD ADMIN
+// ==========================================
+const DashboardAdmin = () => {
+    const [stats, setStats] = useState({ totalUsuarios: 0, funcionarios: 0, terceiros: 0 });
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            const { data: users } = await supabase.from('usuarios').select('tipo');
+            if (users) {
+                const total = users.length;
+                const func = users.filter(u => u.tipo === 'funcionario' || !u.tipo).length;
+                const terc = users.filter(u => u.tipo === 'terceiro').length;
+                setStats({ totalUsuarios: total, funcionarios: func, terceiros: terc });
+            }
+        };
+        fetchStats();
+    }, []);
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">Visão Geral Administrativa</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card title="Total de Usuários" value={stats.totalUsuarios} icon={Users} colorClass="bg-blue-600" />
+                <Card title="Funcionários Internos" value={stats.funcionarios} icon={UserCircle} colorClass="bg-emerald-600" />
+                <Card title="Terceiros / Fornecedores" value={stats.terceiros} icon={Truck} colorClass="bg-orange-600" />
+            </div>
+        </div>
+    );
+};
+
+// ==========================================
 // MÓDULO ADMINISTRAÇÃO
 // ==========================================
 const AdministracaoModule = () => {
     const [view, setView] = useState<AdminView>('dashboard');
+    const [userTab, setUserTab] = useState<'funcionario' | 'terceiro'>('funcionario');
     const [showModal, setShowModal] = useState(false);
     const [listData, setListData] = useState<any[]>([]);
+    const [auxData, setAuxData] = useState<any>({});
 
     useEffect(() => {
         setListData([]);
@@ -1195,8 +1264,20 @@ const AdministracaoModule = () => {
     const loadData = async () => {
         let data: any[] = [];
         if (view === 'usuarios') {
-            const res = await supabase.from('usuarios').select('*').order('usuario');
+            // Busca usuários e seus relacionamentos
+            const res = await supabase
+                .from('usuarios')
+                .select('*, funcionarios(nome), fornecedores(nome)')
+                .order('usuario');
             if (res.data) data = res.data;
+
+            // Busca dados auxiliares para o formulário
+            const funcRes = await supabase.from('funcionarios').select('id, nome, matricula');
+            const fornRes = await supabase.from('fornecedores').select('cod_fornecedor, nome, cnpj');
+            setAuxData({
+                funcionarios: funcRes.data || [],
+                fornecedores: fornRes.data || []
+            });
         }
         setListData(data);
     };
@@ -1204,16 +1285,21 @@ const AdministracaoModule = () => {
     const handleSave = async (data: any) => {
         if (view === 'usuarios') {
             
-            // Hash da senha antes de salvar
+            // Hash da senha
             let hashedPassword = data.senha;
             if (data.senha) {
                 hashedPassword = await sha256(data.senha);
             }
 
             const payload = {
-                ...data,
+                usuario: data.usuario,
                 senha: hashedPassword,
-                permissoes: data.permissoes || [] 
+                email: data.email,
+                telefone: data.telefone,
+                permissoes: data.permissoes || [],
+                tipo: data.tipo, // 'funcionario' ou 'terceiro'
+                funcionario_id: data.tipo === 'funcionario' ? data.funcionario_id : null,
+                fornecedor_id: data.tipo === 'terceiro' ? data.fornecedor_id : null
             };
             
             const { error } = await supabase.from('usuarios').insert(payload);
@@ -1232,17 +1318,10 @@ const AdministracaoModule = () => {
             toast.warn('Não é possível excluir o usuário Master.');
             return;
         }
-        
         if (!window.confirm(`Tem certeza que deseja excluir o usuário ${row.usuario}?`)) return;
-
         const { error } = await supabase.from('usuarios').delete().eq('id', row.id);
-
-        if (error) {
-             toast.error('Erro ao excluir: ' + error.message);
-        } else {
-            toast.success('Usuário excluído com sucesso.');
-            loadData();
-        }
+        if (error) toast.error('Erro ao excluir: ' + error.message);
+        else { toast.success('Usuário excluído com sucesso.'); loadData(); }
     };
 
     const getFormConfig = () => {
@@ -1255,13 +1334,41 @@ const AdministracaoModule = () => {
                     { name: 'email', label: 'E-mail', type: 'email' },
                     { name: 'telefone', label: 'Telefone' },
                     { 
+                        name: 'tipo', 
+                        label: 'Tipo de Usuário', 
+                        type: 'select', 
+                        required: true, 
+                        options: [
+                            { value: 'funcionario', label: 'Funcionário Interno (RH)' },
+                            { value: 'terceiro', label: 'Terceiro (Fornecedor)' }
+                        ]
+                    },
+                    // Campo visível apenas se tipo for funcionario
+                    { 
+                        name: 'funcionario_id', 
+                        label: 'Vincular a Funcionário', 
+                        type: 'select',
+                        required: true,
+                        showIf: { field: 'tipo', value: 'funcionario' },
+                        options: auxData.funcionarios?.map((f:any) => ({ value: f.id, label: `${f.nome} (Matr: ${f.matricula})` }))
+                    },
+                    // Campo visível apenas se tipo for terceiro
+                    { 
+                        name: 'fornecedor_id', 
+                        label: 'Vincular a Fornecedor', 
+                        type: 'select',
+                        required: true,
+                        showIf: { field: 'tipo', value: 'terceiro' },
+                        options: auxData.fornecedores?.map((f:any) => ({ value: f.cod_fornecedor, label: `${f.nome} (CNPJ: ${f.cnpj})` }))
+                    },
+                    { 
                         name: 'permissoes', 
                         label: 'Módulos Permitidos', 
                         type: 'checkbox-group', 
                         options: [
                             { value: 'almoxarifado', label: 'Almoxarifado' },
                             { value: 'rh', label: 'RH' },
-                            { value: 'financeiro', label: 'Financeiro' },
+                            { value: 'logistica', label: 'Logística' },
                             { value: 'administracao', label: 'Administração' }
                         ]
                     }
@@ -1275,54 +1382,87 @@ const AdministracaoModule = () => {
     const renderTable = () => {
         if (view === 'dashboard') return <DashboardAdmin />;
 
-        if (listData.length === 0) return <div className="p-8 text-center text-gray-500">Nenhum registro encontrado.</div>;
-        
-        // Exibir colunas específicas
+        // Filtragem por abas
+        const filteredData = listData.filter(user => {
+            if (userTab === 'funcionario') return user.tipo === 'funcionario' || !user.tipo; // Default pra funcionario se nulo
+            if (userTab === 'terceiro') return user.tipo === 'terceiro';
+            return true;
+        });
+
         return (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600">
-                    <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
-                        <tr>
-                            <th className="p-4">Usuário</th>
-                            <th className="p-4">Email</th>
-                            <th className="p-4">Permissões</th>
-                            <th className="p-4 text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {listData.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50">
-                                <td className="p-4 font-medium">{row.usuario}</td>
-                                <td className="p-4">{row.email}</td>
-                                <td className="p-4">
-                                    <div className="flex gap-2">
-                                        {row.permissoes && Array.isArray(row.permissoes) ? (
-                                            row.permissoes.map((p: string) => (
-                                                <span key={p} className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs capitalize">
-                                                    {p}
-                                                </span>
-                                            ))
-                                        ) : <span className="text-gray-400 italic">Nenhuma</span>}
-                                        {row.usuario === 'Wesley.benevides' && (
-                                            <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">MASTER</span>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="p-4 text-right">
-                                    {row.usuario !== 'Wesley.benevides' && (
-                                        <button 
-                                            onClick={() => handleDelete(row)}
-                                            className="text-red-400 hover:text-red-600 transition-colors p-1"
-                                            title="Excluir Usuário"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            <div className="flex flex-col h-full">
+                {/* Abas */}
+                <div className="flex border-b border-gray-200 mb-4">
+                    <button 
+                        onClick={() => setUserTab('funcionario')}
+                        className={`py-2 px-4 font-medium text-sm focus:outline-none ${userTab === 'funcionario' ? 'border-b-2 border-emerald-500 text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Funcionários (Internos)
+                    </button>
+                    <button 
+                        onClick={() => setUserTab('terceiro')}
+                        className={`py-2 px-4 font-medium text-sm focus:outline-none ${userTab === 'terceiro' ? 'border-b-2 border-emerald-500 text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Terceiros (Fornecedores)
+                    </button>
+                </div>
+
+                {filteredData.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">Nenhum usuário encontrado nesta categoria.</div>
+                ) : (
+                    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+                        <table className="w-full text-left text-sm text-gray-600">
+                            <thead className="bg-gray-50 uppercase text-xs font-semibold text-gray-500">
+                                <tr>
+                                    <th className="p-4">Usuário</th>
+                                    <th className="p-4">Vinculado a</th>
+                                    <th className="p-4">Email</th>
+                                    <th className="p-4">Permissões</th>
+                                    <th className="p-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredData.map((row, idx) => (
+                                    <tr key={idx} className="hover:bg-gray-50">
+                                        <td className="p-4 font-medium">{row.usuario}</td>
+                                        <td className="p-4 text-gray-800">
+                                            {row.tipo === 'terceiro' 
+                                                ? (row.fornecedores?.nome || <span className="text-gray-400 italic">Não vinculado</span>)
+                                                : (row.funcionarios?.nome || <span className="text-gray-400 italic">Não vinculado</span>)
+                                            }
+                                        </td>
+                                        <td className="p-4">{row.email}</td>
+                                        <td className="p-4">
+                                            <div className="flex gap-2 flex-wrap max-w-xs">
+                                                {row.permissoes && Array.isArray(row.permissoes) ? (
+                                                    row.permissoes.map((p: string) => (
+                                                        <span key={p} className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs capitalize">
+                                                            {p}
+                                                        </span>
+                                                    ))
+                                                ) : <span className="text-gray-400 italic">Nenhuma</span>}
+                                                {row.usuario === 'Wesley.benevides' && (
+                                                    <span className="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">MASTER</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            {row.usuario !== 'Wesley.benevides' && (
+                                                <button 
+                                                    onClick={() => handleDelete(row)}
+                                                    className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                                    title="Excluir Usuário"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1347,40 +1487,22 @@ const App = () => {
   const [currentModule, setCurrentModule] = useState<ModuleType>('home');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Recuperar sessão ao iniciar
   useEffect(() => {
     const savedUser = localStorage.getItem('wes_erp_user');
     if (savedUser) {
-        try {
-            setCurrentUser(JSON.parse(savedUser));
-        } catch (e) {
-            console.error('Erro ao restaurar sessão', e);
-        }
+        try { setCurrentUser(JSON.parse(savedUser)); } catch (e) { console.error('Erro ao restaurar sessão', e); }
     }
   }, []);
 
-  const handleLogout = () => {
-      localStorage.removeItem('wes_erp_user');
-      setCurrentUser(null);
-      setCurrentModule('home');
-  };
-
-  // Determinar permissões
+  const handleLogout = () => { localStorage.removeItem('wes_erp_user'); setCurrentUser(null); setCurrentModule('home'); };
   const isMaster = currentUser?.usuario === 'Wesley.benevides';
-  
   const hasAccess = (module: ModuleType) => {
     if (!currentUser) return false;
     if (module === 'home') return true;
     if (isMaster) return true;
     return currentUser.permissoes && currentUser.permissoes.includes(module);
   };
-
-  // Redirecionar se perder acesso ao modulo atual
-  useEffect(() => {
-    if (currentUser && !hasAccess(currentModule)) {
-        setCurrentModule('home');
-    }
-  }, [currentUser, currentModule]);
+  useEffect(() => { if (currentUser && !hasAccess(currentModule)) setCurrentModule('home'); }, [currentUser, currentModule]);
 
   const renderModuleButton = (module: ModuleType, label: string, disabled: boolean = false) => {
       if (!hasAccess(module) && !disabled) return null; 
@@ -1398,14 +1520,13 @@ const App = () => {
   };
 
   const renderContent = () => {
-      if (!hasAccess(currentModule)) {
-         return <div className="p-10 text-center text-gray-500">Acesso não autorizado a este módulo.</div>;
-      }
+      if (!hasAccess(currentModule)) return <div className="p-10 text-center text-gray-500">Acesso não autorizado a este módulo.</div>;
       switch(currentModule) {
           case 'home': return <HomeView currentUser={currentUser} onSelectModule={setCurrentModule} hasAccess={hasAccess} />;
           case 'almoxarifado': return <AlmoxarifadoModule />;
           case 'rh': return <RHModule />;
           case 'administracao': return <AdministracaoModule />;
+          case 'logistica': return <LogisticaModule />;
           default: return <div className="p-10 text-center">Módulo em desenvolvimento ou sem acesso.</div>;
       }
   };
@@ -1413,75 +1534,34 @@ const App = () => {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      
-      {!currentUser ? (
-        <Login onLogin={setCurrentUser} />
-      ) : (
+      {!currentUser ? ( <Login onLogin={setCurrentUser} /> ) : (
         <div className="flex flex-col h-screen">
-          {/* Top Bar */}
           <header className="bg-emerald-800 text-white shadow-lg h-16 flex items-center justify-between px-6 z-10">
-            <div 
-                className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => setCurrentModule('home')}
-                title="Ir para o Início"
-            >
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-800 font-bold text-lg">
-                W
-              </div>
+            <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setCurrentModule('home')} title="Ir para o Início">
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-800 font-bold text-lg">W</div>
               <span className="font-bold text-xl tracking-wide">Wes ERP</span>
             </div>
-
             {currentModule !== 'home' && (
                 <div className="hidden md:flex space-x-1 bg-emerald-900/50 p-1 rounded-lg">
                 {renderModuleButton('almoxarifado', 'Almoxarifado')}
                 {renderModuleButton('rh', 'RH')}
+                {renderModuleButton('logistica', 'Logística')}
                 {renderModuleButton('administracao', 'Administração')}
                 </div>
             )}
             {currentModule === 'home' && <div className="flex-1"></div>}
-
-
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end mr-2">
                 <span className="text-sm font-medium">{currentUser.usuario}</span>
-                <span className="text-xs text-emerald-300">
-                    {isMaster ? 'Master Admin' : 'Usuário'}
-                </span>
+                <span className="text-xs text-emerald-300">{isMaster ? 'Master Admin' : (currentUser.tipo === 'terceiro' ? 'Terceiro' : 'Funcionário')}</span>
               </div>
-              
               <div className="h-8 w-[1px] bg-emerald-600 mx-1"></div>
-              
-              <button 
-                onClick={() => setShowPasswordModal(true)}
-                className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-700/50 rounded-full transition"
-                title="Alterar Senha"
-              >
-                  <Lock className="w-5 h-5" />
-              </button>
-
-              <button 
-                onClick={handleLogout} 
-                className="p-2 text-red-300 hover:text-red-100 hover:bg-red-900/50 rounded-full transition" 
-                title="Sair"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+              <button onClick={() => setShowPasswordModal(true)} className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-700/50 rounded-full transition" title="Alterar Senha"><Lock className="w-5 h-5" /></button>
+              <button onClick={handleLogout} className="p-2 text-red-300 hover:text-red-100 hover:bg-red-900/50 rounded-full transition" title="Sair"><LogOut className="w-5 h-5" /></button>
             </div>
           </header>
-
-          {/* Conteúdo do Módulo */}
           {renderContent()}
-
-          {showPasswordModal && (
-              <ChangePasswordModal 
-                user={currentUser} 
-                onClose={() => setShowPasswordModal(false)}
-                onUpdateUser={(updatedUser: any) => {
-                    setCurrentUser(updatedUser);
-                    localStorage.setItem('wes_erp_user', JSON.stringify(updatedUser));
-                }}
-              />
-          )}
+          {showPasswordModal && (<ChangePasswordModal user={currentUser} onClose={() => setShowPasswordModal(false)} onUpdateUser={(updatedUser: any) => { setCurrentUser(updatedUser); localStorage.setItem('wes_erp_user', JSON.stringify(updatedUser)); }} />)}
         </div>
       )}
     </>
