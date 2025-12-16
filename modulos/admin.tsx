@@ -88,7 +88,8 @@ export const AdministracaoModule = () => {
 
             let error;
             if (editingItem) {
-                 const { error: err } = await supabase.from('usuarios').update(payload).eq('id', editingItem.id);
+                 // Atualiza usando cod_usuario
+                 const { error: err } = await supabase.from('usuarios').update(payload).eq('cod_usuario', editingItem.cod_usuario);
                  error = err;
             } else {
                  const { error: err } = await supabase.from('usuarios').insert(payload);
@@ -107,7 +108,10 @@ export const AdministracaoModule = () => {
 
     const confirmDelete = async () => {
         if (!itemToDelete) return;
-        const { error } = await supabase.from('usuarios').delete().eq('id', itemToDelete.id);
+        
+        // Exclui usando cod_usuario
+        const { error } = await supabase.from('usuarios').delete().eq('cod_usuario', itemToDelete.cod_usuario);
+        
         if (error) toast.error('Erro ao excluir: ' + error.message);
         else { 
             toast.success('Usuário excluído com sucesso.'); 

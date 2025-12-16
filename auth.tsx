@@ -133,7 +133,7 @@ export const ChangePasswordModal = ({ user, onClose, onUpdateUser }: any) => {
              const { data: dbUser, error: fetchError } = await supabase
                 .from('usuarios')
                 .select('senha')
-                .eq('id', user.id)
+                .eq('cod_usuario', user.cod_usuario || user.id) // Fallback para id se cod_usuario nao existir no objeto local
                 .single();
              
              if (fetchError || !dbUser) {
@@ -154,7 +154,7 @@ export const ChangePasswordModal = ({ user, onClose, onUpdateUser }: any) => {
              const { error: updateError } = await supabase
                 .from('usuarios')
                 .update({ senha: hashedNew })
-                .eq('id', user.id);
+                .eq('cod_usuario', user.cod_usuario || user.id);
 
              if (updateError) {
                  toast.error('Erro ao atualizar senha: ' + updateError.message);
